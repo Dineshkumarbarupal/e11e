@@ -12,7 +12,7 @@
 - [x] UI asset regression tests verify style order/existence, premium CSS delimiter balance, and key editor controls
 - [x] Visual node canvas, node drag-to-position, connector handles, zoom controls and selected-node inspector
 - [x] IF node's true/false branch handles and connection management
-- [x] Ten node types: Manual Trigger, Webhook Trigger, Schedule Trigger, Edit Fields, HTTP Request (browser and allow-listed server HTTPS modes), IF, Merge, Wait and Log/Output
+- [x] Nine node types: Manual Trigger, Webhook Trigger, Schedule Trigger, Edit Fields, HTTP Request (browser and allow-listed server HTTPS modes), IF, Merge, Wait and Log/Output
 - [x] Workflow structure validation, local persistence, JSON import/export and per-node test output
 - [x] Editable JSON test input shared by local and server-queued runs; explicit webhook-node selection for local trigger tests
 - [x] Local execution history and run export
@@ -28,7 +28,7 @@
 - [x] Browser engine unit tests and server schema tests
 - [x] Expanded regression coverage for false IF branches, nested interpolation, rejected non-HTTP URL schemes, shared IF branch targets and incoming edges to trigger nodes
 - [x] Cron parser/matcher and scheduler-core tests for UTC matching, invalid expressions, active workflow selection and deduplication keys
-- [x] UI asset regression suite and 37 custom-evaluated workflow/cron/canvas/scheduler-core/server-executor tests passed before secure HTTP was added; secure HTTP has its own 8-case test file, but the full native server test suite and hosted CI have not been verified
+- [x] UI asset regression suite; current custom harness results include passing workflow/canvas/cron/scheduler-core tests, server executor 8/8, and secure HTTP policy 9/9. Native package test commands, production build and hosted CI result are not verified
 - [x] Root `npm test` includes workflow engine, canvas layout, UI asset and cron tests; root `npm run check` checks canvas and cron helper syntax
 - [x] Server tests cover cron matching, schedule-node schema validation, execution starting at a scheduled node, and due-schedule selection
 - [x] Regression test proving an explicit webhook trigger starts the matching node instead of the manual trigger
