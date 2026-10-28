@@ -7,7 +7,7 @@ const STORE_KEY = "e11e.flow.workflows.v1";
 const RUNS_KEY = "e11e.flow.runs.v1";
 const API_KEY = "e11e.flow.api-connection.v1";
 let apiConnection = readApiConnection();
-const state = { page: "Overview", currentId: null, selectedNodeId: null, connectFrom: null, connectBranch: null, webhookSetup: null, runs: readRuns(), drag: null, zoom: 1, searchQuery: "", fitPending: false, testInput: JSON.stringify({ example: "hello from e11e", approved: true, user: { name: "Demo User", email: "demo@example.test" } }, null, 2) };
+const state = { page: "Overview", currentId: null, selectedNodeId: null, connectFrom: null, connectBranch: null, webhookSetup: null, credentialRotateTarget: null, runs: readRuns(), drag: null, zoom: 1, searchQuery: "", fitPending: false, testInput: JSON.stringify({ example: "hello from e11e", approved: true, user: { name: "Demo User", email: "demo@example.test" } }, null, 2) };
 
 function readRuns() { try { return JSON.parse(localStorage.getItem(RUNS_KEY) || "[]"); } catch { return []; } }
 function loadWorkflows() {
@@ -244,7 +244,7 @@ function renderExecutions() {
 
 function renderCredentials() {
   if (!apiConnection) return '<div class="page-head"><div><div class="eyebrow">Security</div><h1>Credentials vault</h1><p>Store integration credentials encrypted on the API server.</p></div></div><section class="panel page-placeholder"><div><div class="brand-mark" style="margin:auto">e</div><h2>Connect your API first</h2><p>Sign in to enable server-side credential storage. Secrets are not stored in browser localStorage.</p><button class="btn-primary" data-page="Settings">Open server settings</button></div></section>';
-  return '<div class="page-head"><div><div class="eyebrow">Security</div><h1>Credentials vault</h1><p>Credential payloads are encrypted at rest by the server. This screen shows metadata only after saving.</p></div></div><div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>Add credential</h2><p>Use a test value; production rotation and KMS are not yet implemented.</p></div></div><form id="credential-form"><label class="field-label">Credential name<input class="field-input" id="credential-name" required maxlength="120" placeholder="CRM API token"></label><label class="field-label">Service / provider<input class="field-input" id="credential-service" required maxlength="120" placeholder="Example CRM"></label><label class="field-label">Secret payload (JSON)<textarea class="field-input code-input" id="credential-secret" rows="7" required placeholder="{&quot;token&quot;:&quot;replace-me&quot;}"></textarea></label><button class="btn-primary" type="submit">Encrypt and save</button></form><div class="notice"><b>Never share secrets in screenshots or logs.</b> The secret is submitted to your configured API and is not shown again in the list.</div></section><section class="panel"><div class="panel-head"><div><h2>Saved credentials</h2><p>Metadata only · workspace scoped</p></div><button class="btn-quiet" id="reload-credentials">Refresh</button></div><div id="credential-list"><div class="empty-state">Loading credentials…</div></div></section></div>';
+  return '<div class="page-head"><div><div class="eyebrow">Security</div><h1>Credentials vault</h1><p>Credential payloads are encrypted at rest by the server. This screen shows metadata only after saving.</p></div></div><div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>Add credential</h2><p>Use a test value; production rotation and KMS are not yet implemented.</p></div></div><form id="credential-form"><label class="field-label">Credential name<input class="field-input" id="credential-name" required maxlength="120" placeholder="CRM API token"></label><label class="field-label">Service / provider<input class="field-input" id="credential-service" required maxlength="120" placeholder="Example CRM"></label><label class="field-label">Secret payload (JSON)<textarea class="field-input code-input" id="credential-secret" rows="7" required placeholder="{&quot;token&quot;:&quot;replace-me&quot;}"></textarea></label><button class="btn-primary" type="submit">Encrypt and save</button></form><div class="notice"><b>Never share secrets in screenshots or logs.</b> The secret is submitted to your configured API and is not shown again in the list.</div></section><section class="panel"><div class="panel-head"><div><h2>Saved credentials</h2><p>Metadata only · workspace scoped</p></div><button class="btn-quiet" id="reload-credentials">Refresh</button></div><div id="credential-list"><div class="empty-state">Loading credentials…</div></div></section></div>' + '<div class="credential-rotation-modal" id="credential-rotation-modal" hidden><div class="credential-rotation-scrim" data-close-credential-rotation></div><section class="credential-rotation-dialog" role="dialog" aria-modal="true" aria-labelledby="credential-rotation-title"><div class="credential-rotation-heading"><div><div class="eyebrow">Security · Secret rotation</div><h2 id="credential-rotation-title">Replace stored secret</h2><p id="credential-rotation-service">The current secret is never retrieved or displayed.</p></div><button type="button" class="icon-btn" data-close-credential-rotation aria-label="Close credential rotation">×</button></div><div class="credential-rotation-target">Credential: <b id="credential-rotation-name"></b></div><form id="credential-rotation-form"><label class="field-label">Replacement secret (JSON)<textarea class="field-input code-input" id="credential-rotation-secret" rows="8" required spellcheck="false" autocomplete="off" placeholder="{&quot;token&quot;:&quot;paste-new-secret-here&quot;}"></textarea></label><p class="field-help">The new value is sent only to the configured API and encrypted by the server. It is not written to the workflow definition or browser local storage.</p><div class="credential-rotation-actions"><button type="button" class="btn-quiet" data-close-credential-rotation>Cancel</button><button type="submit" class="btn-primary" id="credential-rotation-save">Encrypt and rotate</button></div></form></section></div>';
 }
 async function loadCredentials() {
   const result = await apiRequest(workspaceApiPath() + "/credentials");
@@ -258,27 +258,24 @@ async function loadCredentials() {
     try { await navigator.clipboard.writeText(button.dataset.credentialCopy); toast("Credential ID copied."); }
     catch { toast("Clipboard unavailable; copy the credential ID from the list."); }
   }));
-  target.querySelectorAll("[data-credential-rotate]").forEach(button => button.addEventListener("click", async () => {
+  target.querySelectorAll("[data-credential-rotate]").forEach(button => button.addEventListener("click", () => {
     const item = items.find(credential => credential.id === button.dataset.credentialRotate);
     if (!item) return;
-    const raw = prompt("Enter the replacement secret as a JSON object. The existing secret is never displayed.");
-    if (raw === null) return;
-    let secret;
-    try {
-      secret = JSON.parse(raw);
-      if (!secret || typeof secret !== "object" || Array.isArray(secret)) throw new Error("Secret payload must be a JSON object.");
-    } catch (error) {
-      toast("Invalid replacement secret: " + error.message);
+    state.credentialRotateTarget = { id: item.id, name: item.name, service: item.service };
+    const modal = document.querySelector("#credential-rotation-modal");
+    const name = document.querySelector("#credential-rotation-name");
+    const service = document.querySelector("#credential-rotation-service");
+    const secret = document.querySelector("#credential-rotation-secret");
+    if (!modal || !secret) {
+      state.credentialRotateTarget = null;
+      toast("Credential rotation dialog is unavailable.");
       return;
     }
-    try {
-      await apiRequest(workspaceApiPath() + "/credentials/" + encodeURIComponent(item.id), {
-        method: "PUT",
-        body: JSON.stringify({ name: item.name, service: item.service, secret })
-      });
-      toast("Credential secret rotated and encrypted.");
-      await loadCredentials();
-    } catch (error) { toast(error.message); }
+    if (name) name.textContent = item.name;
+    if (service) service.textContent = item.service + " · " + item.id;
+    secret.value = "";
+    modal.hidden = false;
+    requestAnimationFrame(() => secret.focus());
   }));
   target.querySelectorAll("[data-credential-delete]").forEach(button => button.addEventListener("click", async () => {
     if (!confirm("Delete this encrypted credential? Existing workflows may stop working.")) return;
@@ -289,6 +286,14 @@ async function loadCredentials() {
     } catch (error) { toast(error.message); }
   }));
 }
+function closeCredentialRotation() {
+  const modal = document.querySelector("#credential-rotation-modal");
+  const secret = document.querySelector("#credential-rotation-secret");
+  if (modal) modal.hidden = true;
+  if (secret) secret.value = "";
+  state.credentialRotateTarget = null;
+}
+
 function bindCredentials() {
   document.querySelector("#credential-form")?.addEventListener("submit", async event => {
     event.preventDefault();
@@ -307,9 +312,44 @@ function bindCredentials() {
       await loadCredentials();
     } catch (error) { toast(error.message); }
   });
+  document.querySelectorAll("[data-close-credential-rotation]").forEach(button => button.addEventListener("click", closeCredentialRotation));
+  document.querySelector("#credential-rotation-form")?.addEventListener("submit", async event => {
+    event.preventDefault();
+    const target = state.credentialRotateTarget;
+    if (!target) {
+      toast("Choose a credential to rotate first.");
+      return;
+    }
+    const input = document.querySelector("#credential-rotation-secret");
+    const save = document.querySelector("#credential-rotation-save");
+    let secret;
+    try {
+      secret = JSON.parse(input?.value || "");
+      if (!secret || typeof secret !== "object" || Array.isArray(secret)) throw new Error("Secret payload must be a JSON object.");
+    } catch (error) {
+      toast("Invalid replacement secret: " + error.message);
+      input?.focus();
+      return;
+    }
+    if (save) save.disabled = true;
+    try {
+      await apiRequest(workspaceApiPath() + "/credentials/" + encodeURIComponent(target.id), {
+        method: "PUT",
+        body: JSON.stringify({ name: target.name, service: target.service, secret })
+      });
+      closeCredentialRotation();
+      toast("Credential secret rotated and encrypted.");
+      await loadCredentials();
+    } catch (error) {
+      toast(error.message);
+    } finally {
+      if (save) save.disabled = false;
+    }
+  });
   document.querySelector("#reload-credentials")?.addEventListener("click", async () => { try { await loadCredentials(); } catch (error) { toast(error.message); } });
   loadCredentials().catch(error => toast(error.message));
 }
+
 function renderPlaceholder(page) {
  const copy = {Integrations:["Integration registry","App connectors, OAuth lifecycle and reusable integration packages are planned, not implemented."],Credentials:["Credentials vault","Do not put real secrets into workflow fields. A server-side encrypted credentials vault is a required future milestone."],Variables:["Environment variables","Per-environment variables and secret references will be provided by the backend. Browser-local values are not secrets."],Settings:["Workspace settings","User authentication, tenants, RBAC, audit policies and org settings require the backend milestone."],Documentation:["Developer documentation","Review the architecture and roadmap in the repository README and docs folder."]}[page]||["Workspace","Choose a section from the navigation."];
  return `<div class="page-head"><div><div class="eyebrow">Workspace</div><h1>${copy[0]}</h1><p>${copy[1]}</p></div></div><section class="panel page-placeholder"><div><div class="brand-mark" style="margin:auto">e</div><h2>${copy[0]} is on the roadmap</h2><p>This page is intentionally transparent about unimplemented server features.</p><button class="btn-quiet" data-page="Overview">← Back to overview</button></div></section>`;
@@ -512,7 +552,7 @@ function render() {
  const pages=["Overview","Workflows","Executions","Integrations","Credentials","Variables","Settings","Documentation"];
  root.innerHTML=`<div class="app-shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">e</div><div><div class="brand-name">e11e <span style="color:#9d91ff">Flow</span></div><div class="brand-sub">Automation studio</div></div></div><div class="workspace-badge"><span>◈ &nbsp; Personal workspace</span><small>${apiConnection?"Server session":"Local prototype"}</small></div><div><div class="nav-label">Workspace</div><nav class="nav">${pages.slice(0,5).map(p=>`<button class="${state.page===p?"active":""}" data-page="${p}"><span class="ico">${navIcon(p)}</span>${p}</button>`).join("")}</nav></div><div><div class="nav-label">Manage</div><nav class="nav">${pages.slice(5).map(p=>`<button class="${state.page===p?"active":""}" data-page="${p}"><span class="ico">${navIcon(p)}</span>${p}</button>`).join("")}</nav></div><div class="side-bottom"><div class="health"><div class="health-top"><span class="dot"></span> Workspace status <span style="margin-left:auto;color:#60d7a5">Ready</span></div><p>${apiConnection?"API: "+esc(apiConnection.baseUrl):"Browser-local mode. Connect an API in Settings for shared workflows."}</p><div class="mini-meter"><span></span></div></div><div class="user-profile"><div class="avatar">e</div><div>e11e workspace<small>Browser session</small></div></div></div></aside><main class="main"><header class="topbar"><div class="crumb">Workspace <span style="color:#596580">/</span> <strong>${state.page==="Editor"?"Workflow editor":state.page}</strong></div><div class="top-actions"><label class="search" for="global-search"><span aria-hidden="true">⌕</span><input id="global-search" type="search" value="${esc(state.searchQuery)}" placeholder="Search workflows" aria-label="Search workflows"><span class="kbd">⌘ K</span></label><button class="icon-btn" id="help-button" title="Prototype notes">ⓘ</button><div class="avatar">e</div></div></header><div class="content ${state.page==="Editor"?"content-editor":""}">${state.page==="Overview"?renderDashboard():state.page==="Workflows"?renderWorkflows():state.page==="Executions"?renderExecutions():state.page==="Editor"?renderEditor():state.page==="Settings"?renderSettings():state.page==="Credentials"?renderCredentials():renderPlaceholder(state.page)}</div></main></div>`;
  root.querySelector("#global-search")?.addEventListener("keydown",event=>{if(event.key==="Enter"){state.searchQuery=event.currentTarget.value.trim();state.page="Workflows";render();requestAnimationFrame(()=>document.querySelector("#workflow-filter")?.focus());}});
- window.onkeydown=event=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==="k"){event.preventDefault();if(state.page!=="Workflows"){state.page="Workflows";render();}requestAnimationFrame(()=>document.querySelector("#workflow-filter")?.focus());}else if(event.key==="Escape"&&state.connectFrom){state.connectFrom=null;state.connectBranch=null;render();}}
+ window.onkeydown=event=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==="k"){event.preventDefault();if(state.page!=="Workflows"){state.page="Workflows";render();}requestAnimationFrame(()=>document.querySelector("#workflow-filter")?.focus());}else if(event.key==="Escape"&&state.credentialRotateTarget){closeCredentialRotation();}else if(event.key==="Escape"&&state.connectFrom){state.connectFrom=null;state.connectBranch=null;render();}}
  root.querySelectorAll("[data-page]").forEach(b=>b.addEventListener("click",()=>setPage(b.dataset.page)));
  root.querySelectorAll("[data-open]").forEach(b=>b.addEventListener("click",()=>openEditor(b.dataset.open)));
  root.querySelector("#create-workflow")?.addEventListener("click",createWorkflow);
