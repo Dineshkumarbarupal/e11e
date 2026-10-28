@@ -21,5 +21,7 @@ jobs:
           node-version: 20
       - name: Install dependencies
         run: npm install
+      - name: Run workflow engine unit tests
+        run: npm test
       - name: Build static prototype
         run: npm run build
