@@ -272,7 +272,15 @@ export async function buildApp(overrides = {}) {
     const definition = typeof row.definition === "string" ? JSON.parse(row.definition) : row.definition;
     const trigger = (definition.nodes || []).find(node => node.id === nodeId && node.type === "webhook");
     if (!trigger) return reply.code(404).send({ error: "Webhook endpoint not found." });
+    let dedupeKey;
+    try {
+      dedupeKey = getWebhookDedupeKey(request.headers);
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Invalid webhook event ID." });
+    }
+    const eventId = request.headers["x-e11e-event-id"] ?? request.headers["idempotency-key"];
     if (trigger.config?.requireSignature === true) {
+      if (!dedupeKey || typeof eventId !== "string") return reply.code(400).send({ error: "A signed webhook requires x-e11e-event-id or Idempotency-Key so retries can be deduplicated." });
       if (!row.signature_secret_encrypted) return reply.code(409).send({ error: "A signature secret is not configured. Rotate the webhook token and update the sender secret." });
       let signatureSecret;
       try {
@@ -285,17 +293,12 @@ export async function buildApp(overrides = {}) {
         secret: signatureSecret,
         timestamp: request.headers["x-e11e-webhook-timestamp"],
         signature: request.headers["x-e11e-webhook-signature"],
-        body: request.body
+        body: request.body,
+        eventId
       });
       if (!validSignature) return reply.code(401).send({ error: "Invalid webhook signature or timestamp." });
     }
     if (!queue) return reply.code(503).send({ error: "Execution queue is unavailable." });
-    let dedupeKey;
-    try {
-      dedupeKey = getWebhookDedupeKey(request.headers);
-    } catch (error) {
-      return reply.code(400).send({ error: error instanceof Error ? error.message : "Invalid webhook event ID." });
-    }
     const executionId = randomUUID();
     const inserted = await db.query(
       "INSERT INTO executions(id,workspace_id,workflow_id,status,input,trigger_type,trigger_node_id,dedupe_key) VALUES($1,$2,$3,'queued',$4::jsonb,'webhook',$5,$6) ON CONFLICT DO NOTHING RETURNING id,status",
