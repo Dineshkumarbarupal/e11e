@@ -110,5 +110,5 @@ test("Loop Over Items controls are present in the editor and remain bounded", as
   assert.match(app, /"merge","loop","wait"/);
   assert.match(app, /data-config="listField"/);
   assert.match(app, /maxItems/);
-  assert.match(app, /Loop Over Items/);
+  assert.match(app, /itemIndex/);
 });
