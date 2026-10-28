@@ -23,11 +23,14 @@ test("all referenced UI assets exist in the repository", async () => {
   const app = await readRepoFile(UI_ROOT + "js/app.js");
   const engine = await readRepoFile(UI_ROOT + "js/workflow-engine.js");
   const layout = await readRepoFile(UI_ROOT + "js/canvas-layout.js");
+  const cron = await readRepoFile(UI_ROOT + "js/cron-schedule.js");
   assert.ok(css.length > 5000 && baseCss.length > 5000);
   assert.ok(app.includes('from "./workflow-engine.js"'));
   assert.ok(app.includes('from "./canvas-layout.js"'));
   assert.ok(engine.includes("export async function executeWorkflow"));
   assert.ok(layout.includes("export function findAvailableNodePosition"));
+  assert.ok(cron.includes("export function isValidCronExpression"));
+  assert.ok(app.includes('from "./cron-schedule.js"'));
 });
 
 test("premium CSS has balanced braces and parentheses", async () => {
