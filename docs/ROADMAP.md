@@ -1,6 +1,6 @@
 # Product roadmap and progress meter
 
-**Progress snapshot: approximately 64% of a broad n8n-like MVP scope.** This is a rough engineering estimate, not test coverage, enterprise readiness or feature parity with n8n.
+**Progress snapshot: approximately 65% of a broad n8n-like MVP scope.** This is a rough engineering estimate, not test coverage, enterprise readiness or feature parity with n8n.
 
 ## Implemented in this repository
 - [x] Requested root folders and UI theme structure under `26.00.00/theme/AppName_Basic/User/`
@@ -20,6 +20,7 @@
 - [x] Fastify API with JWT auth, bcrypt password hashes, PostgreSQL migrations and workspace membership checks
 - [x] Encrypted credential persistence (AES-256-GCM), credential metadata API, workspace-scoped credential lookup for server HTTP and audit log API
 - [x] Guarded server HTTP execution: explicit exact-host allow-list, HTTPS/443 only, DNS validation and pinned IP, private/reserved IP rejection, no auto-follow redirects, bounded response/request sizes and optional encrypted-vault credential headers
+- [x] Bounded HTTP Request retries in browser and server: configurable 0–3 retries, capped exponential backoff, network/429/5xx retry policy, and no retries for other 4xx responses
 - [x] Redis/BullMQ queue plus a separate worker process
 - [x] Atomic worker execution claims prevent duplicate jobs from re-running already-running or completed workflows while allowing failed attempts to retry
 - [x] Workspace-scoped execution-cancel endpoint and UI action; queued jobs are removed when possible and running jobs cooperatively stop between nodes
@@ -34,7 +35,7 @@
 - [x] GitHub Actions Build verification passed for the atomic execution-claim commits through `46d7c6ec485f3bc9e96e05ec7dc769f5cb917106` (runs 40659525383, 40659552036, 40659575617, 40659634136 and 40659649155, 2026-10-28): syntax, browser tests, server/security tests and Vite build all succeeded
 - [x] Focused harness runs: browser workflow engine 18/18, server executor 13/13 before cancellation tests, secure HTTP policy 9/9, UI assets 11/11, atomic execution claims 6/6, plus canvas/cron/scheduler-core checks
 - [x] GitHub Actions run `40660847263` passed on commit `53054c48f3ca081db76093d9bb6e16a4ef1947c5` (2026-10-28): root 42 tests, server 86 tests, and Vite production build succeeded
-- [x] GitHub Actions run `40662403401` passed on commit `53c84f64aa7fb574e9d6521ee44ec7fd72023604` (2026-10-28): root 49 tests, server/security 93 tests, syntax checks and Vite production build all succeeded with workflow version compare
+- [x] GitHub Actions run `40664453838` passed on commit `8a91c61c2c29e9736f84dac46bf5cc85f7e830b3` (2026-10-28): root 50 tests, server/security 98 tests, syntax checks and Vite production build all succeeded with bounded HTTP retry tests
 - [ ] Live Docker/PostgreSQL/Redis migration tests and real external HTTPS integration tests remain outstanding
 - [x] Root `npm test` includes workflow engine, canvas layout, UI asset and cron tests; root `npm run check` checks canvas and cron helper syntax
 - [x] Server tests cover cron matching, schedule-node schema validation, execution starting at a scheduled node, and due-schedule selection
@@ -53,7 +54,7 @@
 - [ ] Independent SSRF/security review, live HTTPS integration tests, egress policy administration, credential rotation/KMS, and production HTTP operations
 - [ ] Full integrations catalog, OAuth authorization lifecycle, node SDK and community-node management
 - [x] Bounded Loop Over Items node with nested list paths, per-item downstream fan-out and a strict configurable 1–100 item cap; browser and server executor regression tests
-- [ ] General loop cycles/feedback, parallel joins, durable waits/resume, immediate interruption of active nodes, node-level retry policies for all node types and replay
+- [ ] General loop cycles/feedback, parallel joins, durable waits/resume, immediate interruption of active nodes, retries for non-HTTP nodes and replay
 - [ ] AI agents, supported LLM adapters, tool permissions, vector DB/RAG and human approvals
 - [ ] SSO/MFA, account verification/password reset, session revocation, workspace invites and role administration
 - [x] UI credential vault for encrypted create/list/rotate/delete and metadata-only listing; replacement secret is never read back
