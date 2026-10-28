@@ -28,6 +28,10 @@ const worker = new Worker("workflow-executions", async job => {
       maxSteps: 100,
       triggerNodeId: record.trigger_node_id || undefined,
       allowedHosts: config.HTTP_ALLOWED_HOSTS,
+      shouldCancel: async () => {
+        const state = await pool.query("SELECT status FROM executions WHERE id=$1", [executionId]);
+        return state.rows[0]?.status === "cancelled";
+      },
       resolveCredential: async credentialId => {
         const result = await pool.query(
           "SELECT encrypted_payload FROM credentials WHERE workspace_id=$1 AND id=$2",
@@ -39,12 +43,22 @@ const worker = new Worker("workflow-executions", async job => {
         return decryptSecret(payload);
       }
     });
-    await pool.query("UPDATE executions SET status='success',output=$2::jsonb,node_runs=$3::jsonb,finished_at=now(),error=NULL WHERE id=$1", [executionId, JSON.stringify(run.output), JSON.stringify(run.nodeRuns)]);
+    const finished = await pool.query("UPDATE executions SET status='success',output=$2::jsonb,node_runs=$3::jsonb,finished_at=now(),error=NULL WHERE id=$1 AND status='running' RETURNING id", [executionId, JSON.stringify(run.output), JSON.stringify(run.nodeRuns)]);
+    if (!finished.rows[0]) {
+      const latest = await pool.query("SELECT status FROM executions WHERE id=$1", [executionId]);
+      return { status: latest.rows[0]?.status || "unknown", skipped: true };
+    }
     return { status: "success", nodeCount: run.nodeRuns.length };
   } catch (error) {
     const nodeRuns = error.nodeRuns || [];
+    const latest = await pool.query("SELECT status FROM executions WHERE id=$1", [executionId]);
+    if (error.cancelled === true || latest.rows[0]?.status === "cancelled") {
+      await pool.query("UPDATE executions SET status='cancelled',node_runs=$2::jsonb,error='Cancelled by user',finished_at=COALESCE(finished_at,now()) WHERE id=$1 AND status IN ('running','cancelled')", [executionId, JSON.stringify(nodeRuns)]);
+      console.info("Workflow cancellation observed:", executionId);
+      return { status: "cancelled", nodeCount: nodeRuns.length };
+    }
     const message = (error instanceof Error ? error.message : String(error)).slice(0, 2000);
-    await pool.query("UPDATE executions SET status='error',node_runs=$2::jsonb,error=$3,finished_at=now() WHERE id=$1", [executionId, JSON.stringify(nodeRuns), message]);
+    await pool.query("UPDATE executions SET status='error',node_runs=$2::jsonb,error=$3,finished_at=now() WHERE id=$1 AND status='running'", [executionId, JSON.stringify(nodeRuns), message]);
     throw error;
   }
 }, { connection, concurrency, limiter: { max: 30, duration: 60000 } });
