@@ -2,7 +2,7 @@ import { NODE_TYPES, createDefaultWorkflow, executeWorkflow, validateWorkflow } 
 
 const STORE_KEY = "e11e.flow.workflows.v1";
 const RUNS_KEY = "e11e.flow.runs.v1";
-const state = { page: "Overview", currentId: null, selectedNodeId: null, connectFrom: null, runs: readRuns(), drag: null, zoom: 1 };
+const state = { page: "Overview", currentId: null, selectedNodeId: null, connectFrom: null, connectBranch: null, runs: readRuns(), drag: null, zoom: 1 };
 
 function readRuns() { try { return JSON.parse(localStorage.getItem(RUNS_KEY) || "[]"); } catch { return []; } }
 function loadWorkflows() {
@@ -27,7 +27,7 @@ function iconFor(type) { return NODE_TYPES[type]?.icon || "◇"; }
 function toast(message) { const old = document.querySelector(".toast"); old?.remove(); const el = document.createElement("div"); el.className = "toast"; el.textContent = message; document.body.appendChild(el); setTimeout(() => el.remove(), 3000); }
 function id(prefix) { return prefix + "_" + Math.random().toString(36).slice(2, 9); }
 function navIcon(name) { return ({Overview:"◈",Workflows:"⌘",Executions:"◷",Integrations:"⧉",Credentials:"♢",Variables:"≋",Settings:"⚙",Documentation:"↗"})[name] || "◇"; }
-function setPage(page) { state.page = page; state.connectFrom = null; render(); }
+function setPage(page) { state.page = page; state.connectFrom = null; state.connectBranch = null; render(); }
 function openEditor(workflowId) { state.currentId = workflowId; state.selectedNodeId = null; state.page = "Editor"; state.connectFrom = null; render(); }
 function createWorkflow() {
   const workflow = createDefaultWorkflow();
@@ -103,7 +103,7 @@ function renderNode(n) {
  return `<div class="flow-node ${state.selectedNodeId===n.id?"selected":""} ${def.color} ${state.connectFrom===n.id?"connect-source":""}" data-node="${esc(n.id)}" style="left:${n.x}px;top:${n.y}px">
   <div class="node-top" data-drag-handle="${esc(n.id)}"><span class="node-icon ${def.color}">${def.icon}</span><span class="node-heading"><b>${esc(n.name)}</b><small>${def.label}</small></span><button class="node-more" data-node-settings="${esc(n.id)}" title="Node settings">···</button></div>
   <div class="node-description">${esc(nodeSummary(n))}</div><div class="node-footer"><span class="node-kind">${n.type==="manual"?"TRIGGER":n.type==="if"?"BRANCH":n.type.toUpperCase()}</span><span class="node-port-label">${incoming?"CONNECTED":"INPUT"}<i class="port input-port ${state.connectFrom?"port-target":""}" data-connect-to="${esc(n.id)}" title="Connect from previous node"></i></span></div>
-  <button class="port output-port" data-connect-from="${esc(n.id)}" title="Start a connection"></button>
+  ${n.type==="if"?`<span class="branch-label true">T</span><button class="port output-port true-port" data-connect-from="${esc(n.id)}" data-connect-branch="true" title="Connect TRUE branch"></button><span class="branch-label false">F</span><button class="port output-port false-port" data-connect-from="${esc(n.id)}" data-connect-branch="false" title="Connect FALSE branch"></button>`:`<button class="port output-port" data-connect-from="${esc(n.id)}" data-connect-branch="" title="Start a connection"></button>`}
  </div>`;
 }
 function nodeSummary(n) {
@@ -117,7 +117,7 @@ function nodeSummary(n) {
  return "Ready to start";
 }
 function renderEdges(wf) {
- return wf.edges.map(e=>{const a=wf.nodes.find(n=>n.id===e.source),b=wf.nodes.find(n=>n.id===e.target);if(!a||!b)return "";const x1=a.x+216,y1=a.y+63,x2=b.x,y2=b.y+63,mid=(x1+x2)/2;return `<path class="edge-path ${e.sourceHandle||""}" data-edge="${esc(e.id)}" d="M ${x1} ${y1} C ${Math.max(x1+35,mid)} ${y1}, ${Math.min(x2-35,mid)} ${y2}, ${x2} ${y2}" marker-end="url(#arrow)"/>`;}).join("");
+ return wf.edges.map(e=>{const a=wf.nodes.find(n=>n.id===e.source),b=wf.nodes.find(n=>n.id===e.target);if(!a||!b)return "";const x1=a.x+216,y1=a.y+(e.sourceHandle==="true"?57:e.sourceHandle==="false"?85:63),x2=b.x,y2=b.y+63,mid=(x1+x2)/2;return `<path class="edge-path ${e.sourceHandle||""}" data-edge="${esc(e.id)}" d="M ${x1} ${y1} C ${Math.max(x1+35,mid)} ${y1}, ${Math.min(x2-35,mid)} ${y2}, ${x2} ${y2}" marker-end="url(#arrow)"/>`;}).join("");
 }
 function renderInspector(n) {
  const c=n.config||{};
@@ -175,8 +175,8 @@ function bindEditor() {
  document.querySelectorAll("[data-add-node]").forEach(b=>b.addEventListener("click",()=>addNode(b.dataset.addNode)));
  document.querySelectorAll("[data-node-settings]").forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();state.selectedNodeId=b.dataset.nodeSettings;render();}));
  document.querySelectorAll("[data-node]").forEach(el=>el.addEventListener("click",()=>{if(state.connectFrom){toast("Connect using the small input handle on the target node.");return;}state.selectedNodeId=el.dataset.node;render();}));
- document.querySelectorAll("[data-connect-from]").forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();state.connectFrom=b.dataset.connectFrom;state.selectedNodeId=b.dataset.connectFrom;render();toast("Now click a target node's left input handle.");}));
- document.querySelectorAll("[data-connect-to]").forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();const target=b.dataset.connectTo;if(!state.connectFrom){state.selectedNodeId=target;render();return;}if(state.connectFrom===target){toast("A node cannot connect to itself.");return;}const exists=wf.edges.some(ed=>ed.source===state.connectFrom&&ed.target===target);if(!exists)wf.edges.push({id:id("edge"),source:state.connectFrom,target});state.connectFrom=null;state.selectedNodeId=target;wf.updatedAt=new Date().toISOString();persist();render();}));
+ document.querySelectorAll("[data-connect-from]").forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();state.connectFrom=b.dataset.connectFrom;state.connectBranch=b.dataset.connectBranch||null;state.selectedNodeId=b.dataset.connectFrom;render();toast(state.connectBranch?"Connect the "+state.connectBranch.toUpperCase()+" branch to a target input.":"Now click a target node input handle.");}));
+ document.querySelectorAll("[data-connect-to]").forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();const target=b.dataset.connectTo;if(!state.connectFrom){state.selectedNodeId=target;render();return;}if(state.connectFrom===target){toast("A node cannot connect to itself.");return;}const exists=wf.edges.some(ed=>ed.source===state.connectFrom&&ed.target===target);if(!exists)wf.edges.push({id:id("edge"),source:state.connectFrom,target,...(state.connectBranch?{sourceHandle:state.connectBranch}:{})});state.connectFrom=null;state.connectBranch=null;state.selectedNodeId=target;wf.updatedAt=new Date().toISOString();persist();render();}));
  document.querySelectorAll("[data-drag-handle]").forEach(el=>el.addEventListener("pointerdown",startNodeDrag));
  document.querySelectorAll("[data-config]").forEach(el=>el.addEventListener("change",()=>{const n=byId(state.selectedNodeId);if(!n)return;n.config[el.dataset.config]=el.value;wf.updatedAt=new Date().toISOString();persist();syncNodeCard(n);}));
  document.querySelectorAll("[data-config-number]").forEach(el=>el.addEventListener("change",()=>{const n=byId(state.selectedNodeId);if(!n)return;n.config[el.dataset.configNumber]=Number(el.value);persist();syncNodeCard(n);}));
