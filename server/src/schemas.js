@@ -34,6 +34,8 @@ export const workflowSchema = z.object({
     }
     if (node.type === "webhook" && node.config?.requireSignature !== undefined && typeof node.config.requireSignature !== "boolean") ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["nodes", nodeIndex, "config", "requireSignature"], message: "Webhook requireSignature must be a boolean." });
     if (node.type === "http" && node.config?.credentialId != null && !z.string().uuid().safeParse(node.config.credentialId).success) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["nodes", nodeIndex, "config", "credentialId"], message: "HTTP credentialId must be a UUID from the configured workspace credential vault." });
+    if (node.type === "http" && node.config?.retryCount !== undefined && (!Number.isInteger(node.config.retryCount) || node.config.retryCount < 0 || node.config.retryCount > 3)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["nodes", nodeIndex, "config", "retryCount"], message: "HTTP retryCount must be an integer from 0 to 3." });
+    if (node.type === "http" && node.config?.retryDelayMs !== undefined && (!Number.isInteger(node.config.retryDelayMs) || node.config.retryDelayMs < 50 || node.config.retryDelayMs > 5000)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["nodes", nodeIndex, "config", "retryDelayMs"], message: "HTTP retryDelayMs must be an integer from 50 to 5000." });
     if (ids.has(node.id)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["nodes"], message: `Duplicate node id: ${node.id}` });
     ids.add(node.id);
     byId.set(node.id, node);
