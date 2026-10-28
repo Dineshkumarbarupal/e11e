@@ -12,6 +12,30 @@ function interpolate(value, context) {
   });
 }
 
+const RETRYABLE_HTTP_NETWORK_CODES = new Set(["ECONNRESET", "ETIMEDOUT", "EAI_AGAIN", "ECONNREFUSED", "EHOSTUNREACH", "ENETUNREACH", "ECONNABORTED"]);
+
+async function executeWithRetry(operation, { retryCount = 0, retryDelayMs = 250 } = {}) {
+  const retries = Math.min(Math.max(Math.trunc(Number(retryCount) || 0), 0), 3);
+  const baseDelay = Math.min(Math.max(Math.trunc(Number(retryDelayMs) || 250), 50), 5000);
+  let attempts = 0;
+  while (true) {
+    attempts += 1;
+    try {
+      const response = await operation();
+      if (!response?.ok) {
+        const error = new Error("Server HTTP request returned status " + (response?.status ?? "unknown") + ".");
+        error.retryable = response?.status === 429 || Number(response?.status) >= 500;
+        throw error;
+      }
+      return { response, attempts };
+    } catch (error) {
+      const retryable = error?.retryable === true || RETRYABLE_HTTP_NETWORK_CODES.has(error?.code);
+      if (!retryable || attempts > retries) throw error;
+      await new Promise(resolve => setTimeout(resolve, Math.min(baseDelay * (2 ** (attempts - 1)), 10000)));
+    }
+  }
+}
+
 export async function executeWorkflowDefinition(workflow, options = {}) {
   const nodeById = new Map(workflow.nodes.map(node => [node.id, node]));
   const edgeList = workflow.edges || [];
@@ -104,13 +128,15 @@ export async function executeWorkflowDefinition(workflow, options = {}) {
           }
           const body = ["GET", "HEAD"].includes(method) ? undefined : (config.body ? interpolate(config.body, task.input) : undefined);
           const secureRequest = options.executeHttpRequest || executeSecureHttpRequest;
-          const response = await secureRequest(
-            { url, method, headers, body, timeoutMs: config.timeoutMs, credentialHeader },
-            { allowedHosts: options.allowedHosts || [] }
+          const retried = await executeWithRetry(
+            () => secureRequest(
+              { url, method, headers, body, timeoutMs: config.timeoutMs, credentialHeader },
+              { allowedHosts: options.allowedHosts || [] }
+            ),
+            { retryCount: config.retryCount, retryDelayMs: config.retryDelayMs }
           );
-          if (!response.ok) throw new Error("Server HTTP request returned status " + response.status + ".");
-          output = response;
-          message = "HTTPS request completed";
+          output = retried.response;
+          message = retried.attempts > 1 ? "HTTPS request completed after " + retried.attempts + " attempts" : "HTTPS request completed";
           break;
         }
         default:
