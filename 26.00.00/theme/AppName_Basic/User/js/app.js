@@ -148,7 +148,28 @@ async function loadServerExecutions() {
   const result = await apiRequest(workspaceApiPath() + "/executions");
   state.serverRuns = result.executions || [];
   const target = document.querySelector("#server-executions");
-  if (target) target.innerHTML = '<div class="server-runs-title">Server queue history (' + state.serverRuns.length + ')</div>' + (state.serverRuns.length ? '<div class="table-wrap"><table class="data-table"><thead><tr><th>Execution</th><th>Workflow</th><th>Status</th><th>Queued</th></tr></thead><tbody>' + state.serverRuns.map(run => '<tr><td>' + esc(run.id) + '</td><td>' + esc(run.workflowId) + '</td><td>' + esc(run.status) + '</td><td>' + esc(run.queuedAt ? new Date(run.queuedAt).toLocaleString() : "") + '</td></tr>').join("") + '</tbody></table></div>' : '<div class="empty-state">No server executions yet.</div>');
+  if (!target) return;
+  const rows = state.serverRuns.map(run => {
+    const cancellable = ["queued", "running"].includes(String(run.status).toLowerCase());
+    return '<tr><td>' + esc(run.id) + '</td><td>' + esc(run.workflowId) + '</td><td><span class="status ' + (run.status === "success" ? "" : "paused") + '">' + esc(run.status) + '</span></td><td>' + esc(run.queuedAt ? new Date(run.queuedAt).toLocaleString() : "") + '</td><td>' + (cancellable ? '<button class="btn-quiet btn-small" data-cancel-server-execution="' + esc(run.id) + '">Cancel</button>' : '<span class="muted">—</span>') + '</td></tr>';
+  }).join("");
+  target.innerHTML = '<div class="server-runs-title">Server queue history (' + state.serverRuns.length + ')</div>' +
+    (state.serverRuns.length
+      ? '<div class="table-wrap"><table class="data-table"><thead><tr><th>Execution</th><th>Workflow</th><th>Status</th><th>Queued</th><th>Action</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+      : '<div class="empty-state">No server executions yet.</div>');
+  target.querySelectorAll("[data-cancel-server-execution]").forEach(button => button.addEventListener("click", async () => {
+    const executionId = button.dataset.cancelServerExecution;
+    if (!confirm("Cancel this server execution? A running node may finish its current request before cancellation takes effect.")) return;
+    button.disabled = true;
+    try {
+      const response = await apiRequest(workspaceApiPath() + "/executions/" + encodeURIComponent(executionId) + "/cancel", { method: "POST" });
+      toast(response.execution?.alreadyCancelled ? "Execution was already cancelled." : "Execution cancellation requested.");
+      await loadServerExecutions();
+    } catch (error) {
+      toast(error.message);
+      button.disabled = false;
+    }
+  }));
 }
 function currentWorkflow() { return workflows.find(w => w.id === state.currentId) || workflows[0]; }
 function byId(id) { return currentWorkflow().nodes.find(n => n.id === id); }
