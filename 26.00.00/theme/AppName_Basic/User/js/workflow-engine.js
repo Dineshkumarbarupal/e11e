@@ -29,6 +29,7 @@ export function validateWorkflow(workflow) {
   for (const edge of workflow.edges || []) {
     if (!ids.has(edge.source) || !ids.has(edge.target)) errors.push(`Connection ${edge.id || ""} refers to a missing node.`);
     if (edge.source === edge.target) errors.push("A node cannot connect to itself.");
+    if (nodesById.has(edge.target) && ["manual", "webhook", "schedule"].includes(nodesById.get(edge.target).type)) errors.push(`Trigger nodes cannot have incoming connections (${nodesById.get(edge.target).name || edge.target}).`);
     if (edge.sourceHandle && nodesById.get(edge.source)?.type === "if" && !["true", "false"].includes(edge.sourceHandle)) errors.push(`Connection ${edge.id || ""} uses an invalid IF branch.`);
     if (edge.sourceHandle && nodesById.has(edge.source) && nodesById.get(edge.source)?.type !== "if") errors.push(`Connection ${edge.id || ""} has a branch handle on a non-IF node.`);
     if (adjacency.has(edge.source) && ids.has(edge.target)) adjacency.get(edge.source).push(edge.target);
