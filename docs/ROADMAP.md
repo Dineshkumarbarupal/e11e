@@ -36,7 +36,8 @@
 - [x] API/security/architecture/deployment documentation
 
 ## Not implemented yet
-- [x] Optional webhook event-ID idempotency using hashed event IDs and a partial unique database index
+- [x] Optional webhook event-ID idempotency using hashed event IDs, a partial unique database index and retry-on-enqueue-failure behavior
+- [x] Fastify webhook integration tests for duplicate deliveries, distinct IDs, optional headers, invalid IDs, queue failure/retry and CORS preflight (committed; native run still pending)
 - [ ] Provider-specific webhook signature validation, per-hook quotas and advanced replay controls
 - [ ] Timezone/DST schedules, missed-run backfill policy, scheduler metrics/alerts and large-scale partitioned scheduling
 - [x] Server HTTP credential-reference binding and encrypted workspace resolution
