@@ -112,3 +112,11 @@ test("Loop Over Items controls are present in the editor and remain bounded", as
   assert.match(app, /maxItems/);
   assert.match(app, /itemIndex/);
 });
+
+
+test("server execution history offers cancellation for queued/running executions", async () => {
+  const app = await readRepoFile(UI_ROOT + "js/app.js");
+  assert.match(app, /data-cancel-server-execution/);
+  assert.match(app, /\/cancel/);
+  assert.match(app, /current request before cancellation takes effect|current request to finish/);
+});
