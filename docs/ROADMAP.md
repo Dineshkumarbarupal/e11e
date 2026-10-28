@@ -1,6 +1,6 @@
 # Product roadmap and progress meter
 
-**Progress snapshot: approximately 48% of a broad n8n-like MVP scope.** This is a rough engineering estimate, not test coverage, enterprise readiness or feature parity with n8n.
+**Progress snapshot: approximately 51% of a broad n8n-like MVP scope.** This is a rough engineering estimate, not test coverage, enterprise readiness or feature parity with n8n.
 
 ## Implemented in this repository
 - [x] Requested root folders and UI theme structure under `26.00.00/theme/AppName_Basic/User/`
@@ -12,13 +12,14 @@
 - [x] UI asset regression tests verify style order/existence, premium CSS delimiter balance, and key editor controls
 - [x] Visual node canvas, node drag-to-position, connector handles, zoom controls and selected-node inspector
 - [x] IF node's true/false branch handles and connection management
-- [x] Nine node types: Manual Trigger, Webhook Trigger, Schedule Trigger, Edit Fields, HTTP Request (browser demo only), IF, Merge, Wait and Log/Output
+- [x] Ten node types: Manual Trigger, Webhook Trigger, Schedule Trigger, Edit Fields, HTTP Request (browser and allow-listed server HTTPS modes), IF, Merge, Wait and Log/Output
 - [x] Workflow structure validation, local persistence, JSON import/export and per-node test output
 - [x] Editable JSON test input shared by local and server-queued runs; explicit webhook-node selection for local trigger tests
 - [x] Local execution history and run export
 - [x] Browser UI sign-in/register to server, manual workflow push/pull, server-side queue and server run-history loading
 - [x] Fastify API with JWT auth, bcrypt password hashes, PostgreSQL migrations and workspace membership checks
-- [x] Encrypted credential persistence (AES-256-GCM), credential metadata API and audit log API
+- [x] Encrypted credential persistence (AES-256-GCM), credential metadata API, workspace-scoped credential lookup for server HTTP and audit log API
+- [x] Guarded server HTTP execution: explicit exact-host allow-list, HTTPS/443 only, DNS validation and pinned IP, private/reserved IP rejection, no auto-follow redirects, bounded response/request sizes and optional encrypted-vault credential headers
 - [x] Redis/BullMQ queue plus a separate worker process
 - [x] Token-protected webhook endpoints with per-node SHA-256 token hashes and trigger-specific execution
 - [x] UTC five-field cron Schedule Trigger, schema validation, singleton scheduler lock, persistent last-fired slots and retries for queued schedule jobs
@@ -27,7 +28,7 @@
 - [x] Browser engine unit tests and server schema tests
 - [x] Expanded regression coverage for false IF branches, nested interpolation, rejected non-HTTP URL schemes, shared IF branch targets and incoming edges to trigger nodes
 - [x] Cron parser/matcher and scheduler-core tests for UTC matching, invalid expressions, active workflow selection and deduplication keys
-- [x] UI asset regression suite and 37 custom-evaluated workflow/cron/canvas/scheduler-core/server-executor tests passed in this session; native package build and hosted CI status are not yet verified
+- [x] UI asset regression suite and 37 custom-evaluated workflow/cron/canvas/scheduler-core/server-executor tests passed before secure HTTP was added; secure HTTP has its own 8-case test file, but the full native server test suite and hosted CI have not been verified
 - [x] Root `npm test` includes workflow engine, canvas layout, UI asset and cron tests; root `npm run check` checks canvas and cron helper syntax
 - [x] Server tests cover cron matching, schedule-node schema validation, execution starting at a scheduled node, and due-schedule selection
 - [x] Regression test proving an explicit webhook trigger starts the matching node instead of the manual trigger
@@ -37,20 +38,21 @@
 ## Not implemented yet
 - [ ] Provider-specific webhook signature validation, event deduplication and per-hook quotas
 - [ ] Timezone/DST schedules, missed-run backfill policy, scheduler metrics/alerts and large-scale partitioned scheduling
-- [ ] Production outbound HTTP node and credential references; server HTTP execution is intentionally disabled
+- [x] Server HTTP credential-reference binding and encrypted workspace resolution
+- [ ] Independent SSRF/security review, live HTTPS integration tests, egress policy administration, credential rotation/KMS, and production HTTP operations
 - [ ] Full integrations catalog, OAuth authorization lifecycle, node SDK and community-node management
 - [ ] Complete control flow: loops, parallel joins, durable waits/resume, cancellation, node-level retries and replay
 - [ ] AI agents, supported LLM adapters, tool permissions, vector DB/RAG and human approvals
 - [ ] SSO/MFA, account verification/password reset, session revocation, workspace invites and role administration
 - [x] UI credential vault for encrypted create/list/delete and metadata-only listing
-- [ ] Credential-reference binding from workflow nodes, credential rotation/KMS, environment promotion, reusable sub-workflows and collaboration
+- [ ] Credential rotation/KMS, environment promotion, reusable sub-workflows and collaboration
 - [ ] Frontend conflict resolution/continuous synchronization and complete server execution-detail UI
 - [ ] Tenant isolation review, comprehensive authorization tests, audit completeness and data retention/deletion policy
 - [ ] End-to-end/browser/accessibility/load/security tests and independent threat model review
 - [ ] CI result verification, deployment automation, metrics/traces, alerting, backups and disaster-recovery drills
 
 ## Current behavior
-The browser application stores workflows and local run history in localStorage. API login can save a short-lived token in sessionStorage. Server workflow sync is explicit (push/pull), not continuous. The editor supports canvas auto-fit, non-overlapping node placement, preserved scroll position while editing, and editable JSON test payloads. The server worker supports Manual, Webhook, Schedule, Edit Fields, IF, Merge, Wait and Log/Output. The separate UTC scheduler polls every 15 seconds, persists each fired minute by workflow/node, and retries enqueueing queued schedule executions if Redis is unavailable. It does not support timezone/DST rules or missed-run backfill. The browser HTTP node is a non-sensitive demo feature with CORS constraints. The server HTTP node intentionally refuses execution until secure egress controls and credential references are available.
+The browser application stores workflows and local run history in localStorage. API login can save a short-lived token in sessionStorage. Server workflow sync is explicit (push/pull), not continuous. The editor supports canvas auto-fit, non-overlapping node placement, preserved scroll position while editing, and editable JSON test payloads. The server worker supports Manual, Webhook, Schedule, Edit Fields, IF, Merge, Wait and Log/Output. The separate UTC scheduler polls every 15 seconds, persists each fired minute by workflow/node, and retries enqueueing queued schedule executions if Redis is unavailable. It does not support timezone/DST rules or missed-run backfill. The browser HTTP node is a non-sensitive demo feature with CORS constraints. The server HTTP node requires an explicit exact-host `HTTP_ALLOWED_HOSTS` allow-list, HTTPS on port 443 and same-workspace encrypted credential references. Private IPs and redirects are rejected; live-network QA, independent security review and operational hardening remain outstanding.
 
 ## Run and verify
 ```bash
