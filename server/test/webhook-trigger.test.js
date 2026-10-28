@@ -185,3 +185,26 @@ test("failed queue insertion releases the dedupe key so a provider retry can suc
     await app.close();
   }
 });
+
+
+test("CORS preflight allows webhook event-ID and idempotency headers", async () => {
+  const pool = makePool();
+  const queue = makeQueue();
+  const app = await buildApp({ pool, queue });
+  try {
+    const response = await app.inject({
+      method: "OPTIONS",
+      url: "/api/webhooks/" + workflowId + "/hook",
+      headers: {
+        origin: "http://localhost:5173",
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "x-e11e-webhook-token,x-e11e-event-id,idempotency-key"
+      }
+    });
+    assert.equal(response.statusCode, 204);
+    assert.match(response.headers["access-control-allow-headers"], /x-e11e-event-id/i);
+    assert.match(response.headers["access-control-allow-headers"], /idempotency-key/i);
+  } finally {
+    await app.close();
+  }
+});
