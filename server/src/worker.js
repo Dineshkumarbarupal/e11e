@@ -46,6 +46,12 @@ const worker = new Worker("workflow-executions", async job => {
     const finished = await pool.query("UPDATE executions SET status='success',output=$2::jsonb,node_runs=$3::jsonb,finished_at=now(),error=NULL WHERE id=$1 AND status='running' RETURNING id", [executionId, JSON.stringify(run.output), JSON.stringify(run.nodeRuns)]);
     if (!finished.rows[0]) {
       const latest = await pool.query("SELECT status FROM executions WHERE id=$1", [executionId]);
+      if (latest.rows[0]?.status === "cancelled") {
+        await pool.query(
+          "UPDATE executions SET node_runs=$2::jsonb,error=COALESCE(error,'Cancelled by user'),finished_at=COALESCE(finished_at,now()) WHERE id=$1 AND status='cancelled'",
+          [executionId, JSON.stringify(run.nodeRuns)]
+        );
+      }
       return { status: latest.rows[0]?.status || "unknown", skipped: true };
     }
     return { status: "success", nodeCount: run.nodeRuns.length };
