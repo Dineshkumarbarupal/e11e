@@ -9,6 +9,7 @@ process.env.REDIS_URL = "redis://127.0.0.1:6379";
 process.env.CREDENTIAL_ENCRYPTION_KEY_HEX = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 process.env.CORS_ORIGINS = "http://localhost:5173";
 process.env.HTTP_ALLOWED_HOSTS = "";
+process.env.WEBHOOK_RATE_LIMIT_MAX = "60";
 
 const { buildApp } = await import("../src/app.js");
 const { encryptSecret } = await import("../src/crypto.js");
@@ -307,6 +308,25 @@ test("signature-required webhook returns configuration error if signing secret i
     assert.equal(response.statusCode, 409);
     assert.match(response.json().error, /signature secret is not configured/i);
     assert.equal(queue.addCalls.length, 0);
+  } finally {
+    await app.close();
+  }
+});
+
+
+test("public webhook endpoint enforces its per-source per-hook rate limit", async () => {
+  const pool = makePool();
+  const queue = makeQueue();
+  const app = await buildApp({ pool, queue });
+  try {
+    let last;
+    for (let i = 1; i <= 61; i += 1) {
+      last = await injectWebhook(app, { headers: { "x-e11e-event-id": "evt_rate_" + i } });
+      if (i <= 60) assert.equal(last.statusCode, 202, "request " + i + " should be accepted");
+    }
+    assert.equal(last.statusCode, 429);
+    assert.equal(queue.addCalls.length, 60);
+    assert.equal(pool.executions.size, 60);
   } finally {
     await app.close();
   }
