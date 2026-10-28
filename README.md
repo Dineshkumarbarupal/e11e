@@ -25,12 +25,13 @@ Browser workflows and local run history are stored in `localStorage`. The API JW
 - Workspace member checks, viewer write restrictions, input validation, rate limits and explicit CORS origins
 - AES-256-GCM encryption for credential payloads; API responses expose metadata only
 - Redis/BullMQ queue plus separate worker process
-- Server worker supports Manual Trigger, Webhook Trigger, Schedule Trigger, Edit Fields, IF, Merge, Wait and Log/Output with a bounded step budget
+- Server worker supports Manual Trigger, Webhook Trigger, Schedule Trigger, Edit Fields, IF, Merge, Wait, Log/Output and a bounded HTTP Request node
+- Server HTTP uses an exact `HTTP_ALLOWED_HOSTS` list, HTTPS on port 443, pinned DNS addresses, public-IP checks, no automatic redirects, request/response size limits and workspace-scoped encrypted credential references
 - UTC cron scheduler that holds a PostgreSQL advisory lock, persists the last-fired minute per workflow/node and retries queued schedule executions when Redis is temporarily unavailable
-- Server-side HTTP node execution is deliberately disabled until outbound network security and credential-reference support are implemented
+- Server HTTP is disabled unless the operator explicitly configures exact allowed hostnames in `HTTP_ALLOWED_HOSTS`; an empty list keeps outbound HTTP disabled
 
 ## Important gaps
-The app is **not a complete n8n replacement**. Loops, durable wait/resume, server-side secure HTTP/integration runtime, broad integration catalog, OAuth lifecycle, AI agents/LLM tools/RAG, human approvals, collaboration/invites, SSO/MFA, retention/deletion controls, scheduler monitoring/misfire recovery and production hardening are still incomplete. Schedule expressions currently use UTC and do not implement timezone/DST rules or backfill missed runs. The API foundation has not received independent security review or a full integration/load test. Do not expose it publicly or use production credentials.
+The app is **not a complete n8n replacement**. Loops, durable wait/resume, full integration runtime/catalog, OAuth lifecycle, AI agents/LLM tools/RAG, human approvals, collaboration/invites, SSO/MFA, retention/deletion controls, scheduler monitoring/misfire recovery and production hardening are still incomplete. The secure HTTP node has not received an independent security review or live network integration test; timezone/DST rules and schedule backfill are also absent. Schedule expressions currently use UTC and do not implement timezone/DST rules or backfill missed runs. The API foundation has not received independent security review or a full integration/load test. Do not expose it publicly or use production credentials.
 
 ## Requested directory convention
 ```text
@@ -66,7 +67,7 @@ Generate two independent secrets:
 openssl rand -hex 32
 openssl rand -hex 32
 ```
-Use one output for `JWT_SECRET` (at least 32 characters) and one for `CREDENTIAL_ENCRYPTION_KEY_HEX` (exactly 64 hex characters). Set PostgreSQL/Redis URLs and exact frontend origins in `server/.env`.
+Use one output for `JWT_SECRET` (at least 32 characters) and one for `CREDENTIAL_ENCRYPTION_KEY_HEX` (exactly 64 hex characters). Set PostgreSQL/Redis URLs and exact frontend origins in `server/.env`. To enable server HTTP, set `HTTP_ALLOWED_HOSTS` to a comma-separated list of exact HTTPS hostnames; leave it blank to keep outbound HTTP disabled.
 
 Then:
 ```bash
