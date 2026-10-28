@@ -75,6 +75,8 @@ The scheduler polls every 15 seconds, uses a PostgreSQL advisory lock to ensure 
 
 Production gaps remain: no timezone/DST support, missed-run backfill, per-schedule concurrency controls, scheduler health endpoint or alerting. Monitor process logs and database/queue health in non-demo deployments.
 
+HTTP retry configuration is supported for browser and server HTTP nodes: `retryCount` is an integer from 0 to 3 (default 0), and `retryDelayMs` is an integer from 50 to 5000 ms (default 250). Exponential backoff is capped at 10 seconds per wait. Transient network errors, HTTP 429 and HTTP 5xx responses retry; other HTTP 4xx responses fail immediately. Retrying POST/PUT/PATCH may repeat a remote side effect, so retries are off by default. These settings apply only to HTTP nodes; general retries for other node types are not implemented.
+
 ## Secure server HTTP request nodes
 
 Server-side HTTP is disabled by default. Set `HTTP_ALLOWED_HOSTS` in `server/.env` to an explicit comma-separated list of exact DNS hostnames (for example `api.example.com`). Wildcards, IP literals and non-allow-listed hostnames are not accepted. Requests use HTTPS on port 443 only. DNS answers are checked against private, loopback, link-local, documentation and other reserved IP ranges; the chosen public IP is pinned for the TLS request to reduce DNS-rebinding risk. Redirects are not automatically followed.
