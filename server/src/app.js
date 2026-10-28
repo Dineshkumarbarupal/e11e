@@ -388,6 +388,27 @@ export async function buildApp(overrides = {}) {
     }
   });
 
+  app.put("/api/workspaces/:workspaceId/credentials/:credentialId", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const member = await requireMember(request, reply, true);
+    if (!member) return;
+    const id = uuidSchema.safeParse(request.params.credentialId);
+    if (!id.success) return reply.code(400).send({ error: "Invalid credential id." });
+    const parsed = credentialSchema.safeParse(request.body);
+    if (!parsed.success) return validationReply(reply, parsed.error.issues);
+    try {
+      const result = await db.query(
+        "UPDATE credentials SET name=$3,service=$4,encrypted_payload=$5::jsonb,updated_at=now() WHERE workspace_id=$1 AND id=$2 RETURNING id,name,service,created_at,updated_at",
+        [member.id, id.data, parsed.data.name, parsed.data.service, JSON.stringify(encryptSecret(parsed.data.secret))]
+      );
+      if (!result.rows[0]) return reply.code(404).send({ error: "Credential not found." });
+      await audit(db, { workspaceId: member.id, userId: request.user.sub, action: "credential.rotate", resourceType: "credential", resourceId: id.data, metadata: { service: parsed.data.service } });
+      return { credential: result.rows[0] };
+    } catch (error) {
+      if (error.code === "23505") return reply.code(409).send({ error: "A credential with that name already exists in this workspace." });
+      throw error;
+    }
+  });
+
   app.delete("/api/workspaces/:workspaceId/credentials/:credentialId", { preHandler: [app.authenticate] }, async (request, reply) => {
     const member = await requireMember(request, reply, true);
     if (!member) return;
