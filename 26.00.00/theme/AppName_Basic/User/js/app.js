@@ -96,10 +96,13 @@ async function generateWebhookToken() {
   toast("Webhook token created. Copy it now; it is not stored in workflow JSON.");
 }
 async function queueServerExecution() {
+  let input;
+  try { input = JSON.parse(document.querySelector("#run-input")?.value || state.testInput || "{}"); if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("Test input must be a JSON object."); }
+  catch (error) { toast("Invalid test input: " + error.message); return; }
   const flow = await syncCurrentWorkflow(false);
   const result = await apiRequest(workspaceApiPath() + "/workflows/" + encodeURIComponent(flow.id) + "/executions", {
     method: "POST",
-    body: JSON.stringify({ input: { example: "e11e server test", approved: true, user: { name: "Demo User" } } })
+    body: JSON.stringify({ input })
   });
   toast("Server execution queued: " + result.execution.id);
 }
