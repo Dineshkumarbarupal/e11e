@@ -28,7 +28,9 @@
 - [x] Browser engine unit tests and server schema tests
 - [x] Expanded regression coverage for false IF branches, nested interpolation, rejected non-HTTP URL schemes, shared IF branch targets and incoming edges to trigger nodes
 - [x] Cron parser/matcher and scheduler-core tests for UTC matching, invalid expressions, active workflow selection and deduplication keys
-- [x] Current custom-executed test sets: browser workflow engine 18/18, server executor 13/13, secure HTTP policy 9/9, plus earlier canvas/cron/scheduler-core and UI asset checks. Fastify webhook/signature/rate-limit tests are committed but were not run by a native Node test runner here; full root/server test commands, production build and hosted CI result remain unverified
+- [x] GitHub Actions Build verification passed on commit `580d6140aeab6d61926f66fefbb9311344d83082` (run 40659126068, 2026-10-28): dependency install, root/server syntax checks, browser unit tests, server unit/security tests and Vite production build all succeeded
+- [x] Focused harness runs also passed: browser workflow engine 18/18, server executor 13/13, secure HTTP policy 9/9, UI assets 11/11, plus canvas/cron/scheduler-core checks
+- [ ] Re-run hosted CI on any subsequent changes; live Docker/PostgreSQL/Redis and real external HTTPS integration tests remain outstanding
 - [x] Root `npm test` includes workflow engine, canvas layout, UI asset and cron tests; root `npm run check` checks canvas and cron helper syntax
 - [x] Server tests cover cron matching, schedule-node schema validation, execution starting at a scheduled node, and due-schedule selection
 - [x] Regression test proving an explicit webhook trigger starts the matching node instead of the manual trigger
