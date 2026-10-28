@@ -1,6 +1,5 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
 
 process.env.NODE_ENV = "test";
 process.env.JWT_SECRET = "unit-test-jwt-secret-that-is-long-enough-for-validation";
@@ -140,11 +139,14 @@ test("execution cancellation is workspace-scoped and returns 404 for missing row
 });
 
 test("execution cancellation requires authentication and a writable workspace role", async () => {
-  await withApp({ status: "queued" }, async ({ app, token }) => {
+  await withApp({ status: "queued", role: "owner" }, async ({ app }) => {
     const noAuth = await cancel(app, null);
     assert.equal(noAuth.statusCode, 401);
-    const viewer = await cancel(app, token);
-    assert.equal(viewer.statusCode, 200);
+  });
+  await withApp({ status: "queued", role: "viewer" }, async ({ app, token, pool }) => {
+    const forbidden = await cancel(app, token);
+    assert.equal(forbidden.statusCode, 403);
+    assert.equal(pool.row.status, "queued");
   });
 });
 
