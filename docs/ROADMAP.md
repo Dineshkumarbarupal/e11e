@@ -23,6 +23,7 @@
 - [x] Redis/BullMQ queue plus a separate worker process
 - [x] Atomic worker execution claims prevent duplicate jobs from re-running already-running or completed workflows while allowing failed attempts to retry
 - [x] Workspace-scoped execution-cancel endpoint and UI action; queued jobs are removed when possible and running jobs cooperatively stop between nodes
+- [x] Immutable workflow-version snapshots on create/update, migration backfill, authenticated version list/detail, and permission-checked restore as a new version with an audit event
 - [x] Token-protected webhook endpoints with per-node SHA-256 token hashes, trigger-specific execution and optional event-ID deduplication
 - [x] UTC five-field cron Schedule Trigger, schema validation, singleton scheduler lock, persistent last-fired slots and retries for queued schedule jobs
 - [x] Explicit CORS allow-list includes the webhook token header for configured browser origins
@@ -32,7 +33,9 @@
 - [x] Cron parser/matcher and scheduler-core tests for UTC matching, invalid expressions, active workflow selection and deduplication keys
 - [x] GitHub Actions Build verification passed for the atomic execution-claim commits through `46d7c6ec485f3bc9e96e05ec7dc769f5cb917106` (runs 40659525383, 40659552036, 40659575617, 40659634136 and 40659649155, 2026-10-28): syntax, browser tests, server/security tests and Vite build all succeeded
 - [x] Focused harness runs: browser workflow engine 18/18, server executor 13/13 before cancellation tests, secure HTTP policy 9/9, UI assets 11/11, atomic execution claims 6/6, plus canvas/cron/scheduler-core checks
-- [ ] New cancellation endpoint/UI changes require their own hosted CI result; live Docker/PostgreSQL/Redis and real external HTTPS integration tests remain outstanding
+- [x] GitHub Actions run `40660847263` passed on commit `53054c48f3ca081db76093d9bb6e16a4ef1947c5` (2026-10-28): root 42 tests, server 86 tests, and Vite production build succeeded
+- [ ] Latest workflow-version history test run failed one fixture case (missing-workflow test accidentally retained fixture snapshots); fixture has been corrected in commit `4530253811dc40632ac299c43d0b5c18b5f26ee7` and needs a green rerun
+- [ ] Live Docker/PostgreSQL/Redis migration tests and real external HTTPS integration tests remain outstanding
 - [x] Root `npm test` includes workflow engine, canvas layout, UI asset and cron tests; root `npm run check` checks canvas and cron helper syntax
 - [x] Server tests cover cron matching, schedule-node schema validation, execution starting at a scheduled node, and due-schedule selection
 - [x] Regression test proving an explicit webhook trigger starts the matching node instead of the manual trigger
@@ -55,7 +58,8 @@
 - [ ] SSO/MFA, account verification/password reset, session revocation, workspace invites and role administration
 - [x] UI credential vault for encrypted create/list/rotate/delete and metadata-only listing; replacement secret is never read back
 - [ ] Master-key rotation/KMS integration, environment promotion, reusable sub-workflows and collaboration
-- [ ] Frontend conflict resolution/continuous synchronization and complete server execution-detail UI
+- [x] Server execution detail inspection UI with escaped input/output/node-run JSON
+- [ ] Frontend conflict resolution/continuous synchronization, side-by-side workflow-version diffs and version retention/pruning
 - [ ] Tenant isolation review, comprehensive authorization tests, audit completeness and data retention/deletion policy
 - [ ] Worker claim/idempotency integration test against a real PostgreSQL transaction under concurrent job delivery
 - [ ] End-to-end/browser/accessibility/load/security tests and independent threat model review
