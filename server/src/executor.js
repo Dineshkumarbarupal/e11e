@@ -13,7 +13,8 @@ function interpolate(value, context) {
 export async function executeWorkflowDefinition(workflow, options = {}) {
   const nodeById = new Map(workflow.nodes.map(node => [node.id, node]));
   const edgeList = workflow.edges || [];
-  const startNodes = workflow.nodes.filter(node => node.type === "manual" || !edgeList.some(edge => edge.target === node.id));
+  const manualNodes = workflow.nodes.filter(node => node.type === "manual");
+  const startNodes = options.triggerNodeId ? [nodeById.get(options.triggerNodeId)].filter(Boolean) : manualNodes.length ? manualNodes : workflow.nodes.filter(node => !edgeList.some(edge => edge.target === node.id));
   if (!startNodes.length) throw new Error("No root trigger node found.");
   const outputs = new Map();
   const nodeRuns = [];
@@ -34,6 +35,7 @@ export async function executeWorkflowDefinition(workflow, options = {}) {
       const config = node.config || {};
       switch (node.type) {
         case "manual":
+        case "webhook":
           output = task.input;
           break;
         case "set": {
