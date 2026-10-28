@@ -313,6 +313,66 @@ function renderPlaceholder(page) {
  const copy = {Integrations:["Integration registry","App connectors, OAuth lifecycle and reusable integration packages are planned, not implemented."],Credentials:["Credentials vault","Do not put real secrets into workflow fields. A server-side encrypted credentials vault is a required future milestone."],Variables:["Environment variables","Per-environment variables and secret references will be provided by the backend. Browser-local values are not secrets."],Settings:["Workspace settings","User authentication, tenants, RBAC, audit policies and org settings require the backend milestone."],Documentation:["Developer documentation","Review the architecture and roadmap in the repository README and docs folder."]}[page]||["Workspace","Choose a section from the navigation."];
  return `<div class="page-head"><div><div class="eyebrow">Workspace</div><h1>${copy[0]}</h1><p>${copy[1]}</p></div></div><section class="panel page-placeholder"><div><div class="brand-mark" style="margin:auto">e</div><h2>${copy[0]} is on the roadmap</h2><p>This page is intentionally transparent about unimplemented server features.</p><button class="btn-quiet" data-page="Overview">← Back to overview</button></div></section>`;
 }
+async function openWorkflowVersionHistory() {
+  const workflow = currentWorkflow();
+  if (!apiConnection) {
+    toast("Connect to the API before viewing server version history.");
+    return;
+  }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(workflow.id))) {
+    toast("Sync this workflow to the server before viewing its version history.");
+    return;
+  }
+  const modal = document.querySelector("#workflow-version-modal");
+  const list = document.querySelector("#workflow-version-list");
+  const detail = document.querySelector("#workflow-version-detail");
+  if (!modal || !list || !detail) return;
+  modal.hidden = false;
+  list.innerHTML = '<div class="empty-state">Loading versions…</div>';
+  detail.innerHTML = "";
+  try {
+    const result = await apiRequest(workspaceApiPath() + "/workflows/" + encodeURIComponent(workflow.id) + "/versions");
+    const versions = result.versions || [];
+    list.innerHTML = versions.length
+      ? '<div class="version-history-list">' + versions.map(version =>
+          '<article class="version-history-row"><div class="version-history-meta"><b>v' + esc(version.version) + '</b><strong>' + esc(version.name) + '</strong><small>' + esc(version.active ? "Active" : "Inactive") + ' · ' + esc(version.createdAt ? new Date(version.createdAt).toLocaleString() : "Timestamp unavailable") + '</small></div><div class="version-history-actions"><button class="btn-quiet btn-small" data-view-workflow-version="' + esc(version.version) + '">View</button><button class="btn-quiet btn-small" data-restore-workflow-version="' + esc(version.version) + '">Restore</button></div></article>'
+        ).join("") + '</div>'
+      : '<div class="empty-state">No server snapshots yet. Sync this workflow to create its first saved version.</div>';
+    list.querySelectorAll("[data-view-workflow-version]").forEach(button => button.addEventListener("click", async () => {
+      const version = Number(button.dataset.viewWorkflowVersion);
+      detail.innerHTML = '<div class="empty-state">Loading snapshot…</div>';
+      try {
+        const response = await apiRequest(workspaceApiPath() + "/workflows/" + encodeURIComponent(workflow.id) + "/versions/" + version);
+        const snapshot = response.version;
+        detail.innerHTML = '<div class="notice version-history-snapshot"><b>Version ' + esc(snapshot.version) + ' · ' + esc(snapshot.name) + '</b><pre class="server-execution-json">' + esc(JSON.stringify(snapshot.definition, null, 2)) + '</pre></div>';
+      } catch (error) {
+        detail.innerHTML = '<div class="empty-state">' + esc(error.message) + '</div>';
+      }
+    }));
+    list.querySelectorAll("[data-restore-workflow-version]").forEach(button => button.addEventListener("click", async () => {
+      const version = Number(button.dataset.restoreWorkflowVersion);
+      if (!confirm("Restore version " + version + "? The current server version will be preserved, and the restored workflow will be saved as a new version.")) return;
+      button.disabled = true;
+      try {
+        const response = await apiRequest(workspaceApiPath() + "/workflows/" + encodeURIComponent(workflow.id) + "/versions/" + version + "/restore", { method: "POST" });
+        const restored = response.workflow;
+        workflows = workflows.map(item => item.id === restored.id ? { ...restored } : item);
+        persist();
+        modal.hidden = true;
+        state.selectedNodeId = null;
+        state.fitPending = true;
+        render();
+        toast("Restored version " + version + " as new version " + restored.version + ".");
+      } catch (error) {
+        toast(error.message);
+        button.disabled = false;
+      }
+    }));
+  } catch (error) {
+    list.innerHTML = '<div class="empty-state">Could not load version history: ' + esc(error.message) + '</div>';
+  }
+}
+
 function renderEditor() {
  const wf=currentWorkflow();
  const validation=validateWorkflow(wf);
@@ -320,7 +380,7 @@ function renderEditor() {
  const ready=wf.nodes.length>0 && !validation.length;
  const { width: canvasWidth, height: canvasHeight } = getCanvasDimensions(wf.nodes);
  return `<div class="editor-page">
- <div class="editor-topline"><div class="editor-title"><button class="back-link" data-page="Workflows">← Workflows</button><span class="slash">/</span><input class="workflow-name-input" id="workflow-name" value="${esc(wf.name)}" aria-label="Workflow name"><span class="save-state"><i></i> Saved locally</span></div><div class="editor-actions"><button class="btn-quiet" id="export-current">Export</button>${apiConnection?'<button class="btn-quiet" id="sync-current">Sync to server</button><button class="btn-quiet" id="queue-server-run">Queue server run</button>':""}<button class="btn-quiet" id="toggle-active">${wf.active?"Clear active flag":"Set active flag"}</button><button class="btn-primary" id="run-workflow">▶ Test workflow</button></div></div>
+ <div class="editor-topline"><div class="editor-title"><button class="back-link" data-page="Workflows">← Workflows</button><span class="slash">/</span><input class="workflow-name-input" id="workflow-name" value="${esc(wf.name)}" aria-label="Workflow name"><span class="save-state"><i></i> Saved locally</span></div><div class="editor-actions"><button class="btn-quiet" id="export-current">Export</button>${apiConnection?'<button class="btn-quiet" id="workflow-versions">Version history</button>':""}${apiConnection?'<button class="btn-quiet" id="sync-current">Sync to server</button><button class="btn-quiet" id="queue-server-run">Queue server run</button>':""}<button class="btn-quiet" id="toggle-active">${wf.active?"Clear active flag":"Set active flag"}</button><button class="btn-primary" id="run-workflow">▶ Test workflow</button></div></div>
  <div class="editor-toolbar"><div class="toolbar-left"><span class="tiny-pill">${wf.nodes.length} nodes</span><span class="tiny-pill">${wf.edges.length} connections</span>${validation.length?`<span class="pill-error">${validation.length} validation error(s)</span>`:'<span class="pill-ok">✓ Valid structure</span>'}</div><div class="toolbar-right"><button class="icon-btn" id="zoom-out" title="Zoom out">−</button><span id="zoom-level">100%</span><button class="icon-btn" id="zoom-in" title="Zoom in">＋</button><button class="icon-btn" id="fit-canvas" title="Fit view">⤢</button></div></div>
  <div class="editor-layout">
   <aside class="node-palette"><div class="palette-head"><strong>Node library</strong><span class="tiny-pill">${Object.keys(NODE_TYPES).length}</span></div><p class="palette-hint">Select a node to add it to the canvas.</p>
@@ -332,6 +392,17 @@ function renderEditor() {
   <aside class="inspector"><div class="inspector-head"><div><strong>Node settings</strong><small>${node?esc(node.name):"Select a node"}</small></div>${node?'<button class="icon-btn" id="delete-node" title="Delete node">⌫</button>':""}</div>${node?renderInspector(node):'<div class="inspector-empty"><div class="empty-node-icon">◇</div><b>No node selected</b><p>Select a node on the canvas to inspect its settings, or choose one from the node library.</p></div>'}</aside>
  </div>
  <div class="run-drawer"><div class="run-drawer-head"><div><b>Test output</b><span>${state.lastRun?esc(state.lastRun.status):"Ready to test"}</span></div><button class="text-link" id="toggle-output">${state.outputCollapsed?"Show":"Hide"}</button></div><div class="run-input-panel"><label class="field-label" for="run-input">TEST INPUT <span class="run-input-hint">JSON object passed to the trigger</span><textarea class="field-input code-input run-input" id="run-input" rows="5" spellcheck="false">${esc(state.testInput)}</textarea></label><div class="run-input-footer"><span>Tip: IF rules can read fields such as <code>approved</code> or <code>user.name</code>.</span><button class="btn-quiet btn-small" id="reset-test-input">Reset sample</button></div></div><div class="run-output ${state.outputCollapsed?"collapsed":""}" id="run-output">${renderLastRun()}</div></div>
+ <div class="version-history-modal" id="workflow-version-modal" hidden>
+  <div class="version-history-scrim" data-close-version-history></div>
+  <section class="version-history-dialog" role="dialog" aria-modal="true" aria-labelledby="workflow-version-title">
+   <div class="version-history-heading">
+    <div><div class="eyebrow">Workflow snapshots</div><h2 id="workflow-version-title">Version history</h2><p>Restoring a snapshot preserves the current version and creates a new one.</p></div>
+    <button class="icon-btn" data-close-version-history aria-label="Close version history">×</button>
+   </div>
+   <div id="workflow-version-list"><div class="empty-state">Loading versions…</div></div>
+   <div id="workflow-version-detail"></div>
+  </section>
+ </div>
  </div>`;
 }
 function paletteButton(type) { const def=NODE_TYPES[type]; return `<button class="palette-node" data-add-node="${type}"><span class="palette-icon ${def.color}">${def.icon}</span><span><b>${def.label}</b><small>${({manual:"Start the workflow",webhook:"Accept authenticated HTTP POST",schedule:"Run on a UTC cron schedule",set:"Set or transform fields",http:"Call an HTTP endpoint",if:"Route on a condition",merge:"Combine object inputs",wait:"Pause briefly",log:"Inspect the output"})[type]}</small></span><span class="palette-plus">＋</span></button>`; }
@@ -453,6 +524,8 @@ function bindEditor() {
  document.querySelector("#run-workflow")?.addEventListener("click",runCurrentWorkflow);
  document.querySelector("#run-input")?.addEventListener("input",event=>{state.testInput=event.currentTarget.value;});
  document.querySelector("#reset-test-input")?.addEventListener("click",()=>{state.testInput=JSON.stringify({example:"hello from e11e",approved:true,user:{name:"Demo User",email:"demo@example.test"}},null,2);const input=document.querySelector("#run-input");if(input)input.value=state.testInput;});
+ document.querySelector("#workflow-versions")?.addEventListener("click",openWorkflowVersionHistory);
+ document.querySelectorAll("[data-close-version-history]").forEach(element=>element.addEventListener("click",()=>{const modal=document.querySelector("#workflow-version-modal");if(modal)modal.hidden=true;}));
  document.querySelector("#sync-current")?.addEventListener("click",async()=>{try{await syncCurrentWorkflow();toast("Workflow saved to the server.");}catch(error){toast(error.message);}});
  document.querySelector("#queue-server-run")?.addEventListener("click",async()=>{try{await queueServerExecution();}catch(error){toast(error.message);}});
  document.querySelector("#generate-webhook-token")?.addEventListener("click",async()=>{try{await generateWebhookToken();}catch(error){toast(error.message);}});
