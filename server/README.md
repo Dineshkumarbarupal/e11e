@@ -1,5 +1,7 @@
 # e11e Flow API and worker
 
+Requires Node.js 24 LTS or newer.
+
 This package is a development foundation and is not a production-hardened public automation service.
 
 ## Local setup with Docker Compose
