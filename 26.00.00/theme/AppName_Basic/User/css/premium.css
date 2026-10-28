@@ -423,3 +423,13 @@ button:disabled{opacity:.58;cursor:not-allowed;transform:none!important}
 #app .version-history-actions{display:flex;flex-shrink:0;gap:6px}
 #app .version-history-snapshot{margin-top:10px}
 @media(max-width:620px){#app .version-history-dialog{max-height:94vh;border-radius:14px;padding:13px}#app .version-history-row{align-items:flex-start;flex-direction:column}#app .version-history-actions{width:100%}#app .version-history-actions button{flex:1}}
+
+/* Version comparison: readable path-based changes in the premium history modal */
+#app .version-diff-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+#app .version-diff-heading>b{color:#e0e7fa;font-size:12px}
+#app .version-diff-heading>span{color:#a99aff;font-size:10px}
+#app .version-diff-table{table-layout:fixed;min-width:640px}
+#app .version-diff-table th:first-child,#app .version-diff-table td:first-child{width:25%}
+#app .version-diff-table td{vertical-align:top}
+#app .version-diff-table code{color:#c4baff;font-size:10px;overflow-wrap:anywhere}
+#app .version-diff-value{margin:0;max-height:190px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;border-radius:6px;background:rgba(6,9,16,.56);padding:8px;color:#aebbd2;font:10px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace}
