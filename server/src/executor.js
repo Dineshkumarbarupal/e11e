@@ -93,6 +93,17 @@ export async function executeWorkflowDefinition(workflow, options = {}) {
           output = Object.assign({}, ...incoming);
           break;
         }
+        case "loop": {
+          const listField = String(config.listField || "items").trim();
+          const items = pathValue(task.input, listField);
+          const maxItems = config.maxItems === undefined ? 20 : Number(config.maxItems);
+          if (!Array.isArray(items)) throw new Error('Loop Over Items expected an array at "' + listField + '".');
+          if (!Number.isInteger(maxItems) || maxItems < 1 || maxItems > 100) throw new Error("Loop Over Items maxItems must be an integer from 1 to 100.");
+          if (items.length > maxItems) throw new Error("Loop Over Items received " + items.length + " items; configured limit is " + maxItems + ".");
+          output = { ...((task.input && typeof task.input === "object" && !Array.isArray(task.input)) ? task.input : { value: task.input }), loop: { field: listField, itemCount: items.length } };
+          message = "Prepared " + items.length + " loop item(s)";
+          break;
+        }
         case "wait": {
           const delay = Math.min(Math.max(Number(config.ms) || 0, 0), 1000);
           if (delay) await new Promise(resolve => setTimeout(resolve, delay));
@@ -146,7 +157,23 @@ export async function executeWorkflowDefinition(workflow, options = {}) {
       nodeRuns.push({ nodeId: node.id, name: node.name, type: node.type, status, message, durationMs: Date.now() - start, input: task.input, output });
       let nextEdges = edgeList.filter(edge => edge.source === node.id);
       if (node.type === "if") nextEdges = nextEdges.filter(edge => edge.sourceHandle === branch);
-      for (const edge of nextEdges) queue.push({ id: edge.target, input: output, ancestors: [...task.ancestors, node.id] });
+      if (node.type === "loop") {
+        const listField = String(node.config?.listField || "items").trim();
+        const items = pathValue(task.input, listField);
+        const base = task.input && typeof task.input === "object" && !Array.isArray(task.input) ? task.input : { value: task.input };
+        for (const edge of nextEdges) {
+          for (const [itemIndex, item] of items.entries()) {
+            const itemFields = item && typeof item === "object" && !Array.isArray(item) ? item : { value: item };
+            queue.push({
+              id: edge.target,
+              input: { ...base, ...itemFields, item, itemIndex, itemCount: items.length, loop: { field: listField, index: itemIndex, count: items.length } },
+              ancestors: [...task.ancestors, node.id]
+            });
+          }
+        }
+      } else {
+        for (const edge of nextEdges) queue.push({ id: edge.target, input: output, ancestors: [...task.ancestors, node.id] });
+      }
     } catch (error) {
       status = "error";
       message = error instanceof Error ? error.message : String(error);
