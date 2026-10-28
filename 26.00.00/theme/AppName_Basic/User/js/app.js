@@ -1,4 +1,5 @@
 import { NODE_TYPES, createDefaultWorkflow, executeWorkflow, validateWorkflow } from "./workflow-engine.js";
+import { findAvailableNodePosition, getCanvasDimensions } from "./canvas-layout.js";
 
 const STORE_KEY = "e11e.flow.workflows.v1";
 const RUNS_KEY = "e11e.flow.runs.v1";
@@ -249,8 +250,7 @@ function renderEditor() {
  const validation=validateWorkflow(wf);
  const node=byId(state.selectedNodeId);
  const ready=wf.nodes.length>0 && !validation.length;
- const canvasWidth=Math.max(2200,...wf.nodes.map(n=>Math.ceil((n.x+520)/100)*100));
- const canvasHeight=Math.max(1300,...wf.nodes.map(n=>Math.ceil((n.y+300)/100)*100));
+ const { width: canvasWidth, height: canvasHeight } = getCanvasDimensions(wf.nodes);
  return `<div class="editor-page">
  <div class="editor-topline"><div class="editor-title"><button class="back-link" data-page="Workflows">← Workflows</button><span class="slash">/</span><input class="workflow-name-input" id="workflow-name" value="${esc(wf.name)}" aria-label="Workflow name"><span class="save-state"><i></i> Saved locally</span></div><div class="editor-actions"><button class="btn-quiet" id="export-current">Export</button>${apiConnection?'<button class="btn-quiet" id="sync-current">Sync to server</button><button class="btn-quiet" id="queue-server-run">Queue server run</button>':""}<button class="btn-quiet" id="toggle-active">${wf.active?"Clear active flag":"Set active flag"}</button><button class="btn-primary" id="run-workflow">▶ Test workflow</button></div></div>
  <div class="editor-toolbar"><div class="toolbar-left"><span class="tiny-pill">${wf.nodes.length} nodes</span><span class="tiny-pill">${wf.edges.length} connections</span>${validation.length?`<span class="pill-error">${validation.length} validation error(s)</span>`:'<span class="pill-ok">✓ Valid structure</span>'}</div><div class="toolbar-right"><button class="icon-btn" id="zoom-out" title="Zoom out">−</button><span id="zoom-level">100%</span><button class="icon-btn" id="zoom-in" title="Zoom in">＋</button><button class="icon-btn" id="fit-canvas" title="Fit view">⤢</button></div></div>
@@ -389,23 +389,8 @@ function bindEditor() {
  document.querySelector("#toggle-output")?.addEventListener("click",()=>{state.outputCollapsed=!state.outputCollapsed;const panel=document.querySelector("#run-output");panel.classList.toggle("collapsed",state.outputCollapsed);document.querySelector("#toggle-output").textContent=state.outputCollapsed?"Show":"Hide";});
  if(state.fitPending){state.fitPending=false;fitCanvasView();}
 }
-function findAvailableNodePosition(wf) {
- const nodes=wf.nodes||[];if(!nodes.length)return {x:120,y:160};
- const centerX=nodes.reduce((sum,n)=>sum+n.x+108,0)/nodes.length;
- const centerY=nodes.reduce((sum,n)=>sum+n.y+63,0)/nodes.length;
- const maxX=Math.max(0,...nodes.map(n=>n.x));const maxY=Math.max(0,...nodes.map(n=>n.y));
- const cols=Math.min(20,Math.max(7,Math.ceil((maxX+700)/300)));
- const rows=Math.min(20,Math.max(6,Math.ceil((maxY+600)/200)));
- const candidates=[];
- for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){
-  const x=100+col*300,y=130+row*200;
-  const collision=nodes.some(n=>x<n.x+240&&x+240>n.x&&y<n.y+150&&y+150>n.y);
-  if(!collision)candidates.push({x,y,score:Math.pow(x+108-centerX,2)+Math.pow(y+63-centerY,2)});
- }
- candidates.sort((a,b)=>a.score-b.score);return candidates[0]?{x:candidates[0].x,y:candidates[0].y}:null;
-}
 function addNode(type) {
- const wf=currentWorkflow();const position=findAvailableNodePosition(wf);if(!position){toast("The canvas is full. Move or delete a node before adding another.");return;}const n={id:id("node"),type,name:NODE_TYPES[type].label,...position,config:{}};
+ const wf=currentWorkflow();const position=findAvailableNodePosition(wf.nodes);if(!position){toast("The canvas is full. Move or delete a node before adding another.");return;}const n={id:id("node"),type,name:NODE_TYPES[type].label,...position,config:{}};
  if(type==="set")n.config={fields:{result:"ok"},keepInput:true};
  if(type==="http")n.config={url:"https://jsonplaceholder.typicode.com/todos/1",method:"GET",headers:{},timeoutMs:10000};
  if(type==="if")n.config={field:"approved",operator:"equals",value:true};
@@ -421,7 +406,7 @@ function startNodeDrag(event) {
  const up=()=>{if(state.drag){state.drag.el?.classList.remove("dragging");state.drag=null;currentWorkflow().updatedAt=new Date().toISOString();persist();markSaved();}window.removeEventListener("pointermove",move);window.removeEventListener("pointerup",up);};
  window.addEventListener("pointermove",move);window.addEventListener("pointerup",up,{once:true});
 }
-function refreshEdges(){const wf=currentWorkflow();const width=Math.max(2200,...wf.nodes.map(n=>Math.ceil((n.x+520)/100)*100));const height=Math.max(1300,...wf.nodes.map(n=>Math.ceil((n.y+300)/100)*100));const inner=document.querySelector("#canvas-inner");const layer=document.querySelector("#edge-layer");if(inner){inner.style.width=width+"px";inner.style.height=height+"px";}if(layer){layer.setAttribute("width",String(width));layer.setAttribute("height",String(height));layer.setAttribute("viewBox","0 0 "+width+" "+height);layer.innerHTML='<defs><marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#8f86ed"/></marker></defs>'+renderEdges(wf);}}
+function refreshEdges(){const wf=currentWorkflow();const {width,height}=getCanvasDimensions(wf.nodes);const inner=document.querySelector("#canvas-inner");const layer=document.querySelector("#edge-layer");if(inner){inner.style.width=width+"px";inner.style.height=height+"px";}if(layer){layer.setAttribute("width",String(width));layer.setAttribute("height",String(height));layer.setAttribute("viewBox","0 0 "+width+" "+height);layer.innerHTML='<defs><marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#8f86ed"/></marker></defs>'+renderEdges(wf);}}
 function changeZoom(delta){const viewport=document.querySelector("#canvas-scroll");const oldZoom=state.zoom;const centerX=viewport?(viewport.scrollLeft+viewport.clientWidth/2)/oldZoom:0;const centerY=viewport?(viewport.scrollTop+viewport.clientHeight/2)/oldZoom:0;state.zoom=Math.min(1.5,Math.max(.35,Math.round((state.zoom+delta)*10)/10));updateZoom();if(viewport){viewport.scrollLeft=Math.max(0,centerX*state.zoom-viewport.clientWidth/2);viewport.scrollTop=Math.max(0,centerY*state.zoom-viewport.clientHeight/2);}}
 function updateZoom(){const inner=document.querySelector("#canvas-inner");if(inner)inner.style.transform="scale("+state.zoom+")";const label=document.querySelector("#zoom-level");if(label)label.textContent=Math.round(state.zoom*100)+"%";}
 function fitCanvasView(){const viewport=document.querySelector("#canvas-scroll");const wf=currentWorkflow();if(!viewport||!wf?.nodes?.length){state.zoom=1;updateZoom();return;}const minX=Math.min(...wf.nodes.map(n=>n.x)),minY=Math.min(...wf.nodes.map(n=>n.y));const maxX=Math.max(...wf.nodes.map(n=>n.x+216)),maxY=Math.max(...wf.nodes.map(n=>n.y+126));const width=Math.max(1,maxX-minX),height=Math.max(1,maxY-minY);const availableWidth=Math.max(160,viewport.clientWidth-54),availableHeight=Math.max(160,viewport.clientHeight-104);state.zoom=Math.max(.35,Math.min(1.1,availableWidth/width,availableHeight/height));updateZoom();requestAnimationFrame(()=>{const current=document.querySelector("#canvas-scroll");if(current){current.scrollLeft=Math.max(0,Math.round(minX*state.zoom-28));current.scrollTop=Math.max(0,Math.round(minY*state.zoom-44));}});}
