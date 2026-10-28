@@ -1,6 +1,6 @@
 # Product roadmap and progress meter
 
-**Progress snapshot: approximately 45% of a broad n8n-like MVP scope.** This is a rough engineering estimate, not test coverage, enterprise readiness or feature parity with n8n.
+**Progress snapshot: approximately 48% of a broad n8n-like MVP scope.** This is a rough engineering estimate, not test coverage, enterprise readiness or feature parity with n8n.
 
 ## Implemented in this repository
 - [x] Requested root folders and UI theme structure under `26.00.00/theme/AppName_Basic/User/`
@@ -12,7 +12,7 @@
 - [x] UI asset regression tests verify style order/existence, premium CSS delimiter balance, and key editor controls
 - [x] Visual node canvas, node drag-to-position, connector handles, zoom controls and selected-node inspector
 - [x] IF node's true/false branch handles and connection management
-- [x] Eight node types: Manual Trigger, Webhook Trigger, Edit Fields, HTTP Request (browser demo only), IF, Merge, Wait and Log/Output
+- [x] Nine node types: Manual Trigger, Webhook Trigger, Schedule Trigger, Edit Fields, HTTP Request (browser demo only), IF, Merge, Wait and Log/Output
 - [x] Workflow structure validation, local persistence, JSON import/export and per-node test output
 - [x] Editable JSON test input shared by local and server-queued runs; explicit webhook-node selection for local trigger tests
 - [x] Local execution history and run export
@@ -21,18 +21,21 @@
 - [x] Encrypted credential persistence (AES-256-GCM), credential metadata API and audit log API
 - [x] Redis/BullMQ queue plus a separate worker process
 - [x] Token-protected webhook endpoints with per-node SHA-256 token hashes and trigger-specific execution
+- [x] UTC five-field cron Schedule Trigger, schema validation, singleton scheduler lock, persistent last-fired slots and retries for queued schedule jobs
 - [x] Explicit CORS allow-list includes the webhook token header for configured browser origins
 - [x] Tracked SQL migrations, local Docker Compose services and server worker tests
 - [x] Browser engine unit tests and server schema tests
 - [x] Expanded regression coverage for false IF branches, nested interpolation, rejected non-HTTP URL schemes, and shared IF branch targets
-- [x] Root `npm test` includes workflow engine, canvas layout, and UI asset tests; root `npm run check` checks the canvas helper syntax
+- [x] Cron parser/matcher and scheduler-core tests for UTC matching, invalid expressions, active workflow selection and deduplication keys
+- [x] Root `npm test` includes workflow engine, canvas layout, UI asset and cron tests; root `npm run check` checks canvas and cron helper syntax
+- [x] Server tests cover cron matching, schedule-node schema validation, execution starting at a scheduled node, and due-schedule selection
 - [x] Regression test proving an explicit webhook trigger starts the matching node instead of the manual trigger
 - [x] GitHub Actions workflow configured for JS syntax, tests and static build
 - [x] API/security/architecture/deployment documentation
 
 ## Not implemented yet
 - [ ] Provider-specific webhook signature validation, event deduplication and per-hook quotas
-- [ ] Schedule/cron triggers, rescheduling and distributed scheduler coordination
+- [ ] Timezone/DST schedules, missed-run backfill policy, scheduler metrics/alerts and large-scale partitioned scheduling
 - [ ] Production outbound HTTP node and credential references; server HTTP execution is intentionally disabled
 - [ ] Full integrations catalog, OAuth authorization lifecycle, node SDK and community-node management
 - [ ] Complete control flow: loops, parallel joins, durable waits/resume, cancellation, node-level retries and replay
@@ -46,7 +49,7 @@
 - [ ] CI result verification, deployment automation, metrics/traces, alerting, backups and disaster-recovery drills
 
 ## Current behavior
-The browser application stores workflows and local run history in localStorage. API login can save a short-lived token in sessionStorage. Server workflow sync is explicit (push/pull), not continuous. The editor supports canvas auto-fit, non-overlapping node placement, preserved scroll position while editing, and editable JSON test payloads. The server worker supports Manual, Webhook, Edit Fields, IF, Merge, Wait and Log/Output. The browser HTTP node is a non-sensitive demo feature with CORS constraints. The server HTTP node intentionally refuses execution until secure egress controls and credential references are available.
+The browser application stores workflows and local run history in localStorage. API login can save a short-lived token in sessionStorage. Server workflow sync is explicit (push/pull), not continuous. The editor supports canvas auto-fit, non-overlapping node placement, preserved scroll position while editing, and editable JSON test payloads. The server worker supports Manual, Webhook, Schedule, Edit Fields, IF, Merge, Wait and Log/Output. The separate UTC scheduler polls every 15 seconds, persists each fired minute by workflow/node, and retries enqueueing queued schedule executions if Redis is unavailable. It does not support timezone/DST rules or missed-run backfill. The browser HTTP node is a non-sensitive demo feature with CORS constraints. The server HTTP node intentionally refuses execution until secure egress controls and credential references are available.
 
 ## Run and verify
 ```bash
