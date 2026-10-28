@@ -236,3 +236,48 @@ test("server HTTP retries 429 and 5xx responses but not ordinary 4xx responses",
   }), /status 400/);
   assert.equal(clientErrorCalls, 1);
 });
+
+
+test("server executor fans out bounded loop items into the downstream branch", async () => {
+  const flow = {
+    id: "server-loop-flow", name: "Server loop", active: false,
+    nodes: [
+      { id: "start", type: "manual", name: "Start", x: 0, y: 0, config: {} },
+      { id: "loop", type: "loop", name: "Loop", x: 200, y: 0, config: { listField: "rows", maxItems: 5 } },
+      { id: "fields", type: "set", name: "Fields", x: 400, y: 0, config: { fields: { label: "#{{ itemIndex }}={{ name }}" } } },
+      { id: "log", type: "log", name: "Log", x: 600, y: 0, config: {} }
+    ],
+    edges: [{ id: "a", source: "start", target: "loop" }, { id: "b", source: "loop", target: "fields" }, { id: "c", source: "fields", target: "log" }]
+  };
+  const run = await executeWorkflowDefinition(flow, { input: { rows: [{ name: "Ada" }, { name: "Lin" }] }, maxSteps: 20 });
+  const logs = run.nodeRuns.filter(item => item.nodeId === "log");
+  assert.equal(run.status, "success");
+  assert.equal(logs.length, 2);
+  assert.equal(logs[0].output.label, "#0=Ada");
+  assert.equal(logs[1].output.label, "#1=Lin");
+});
+
+test("server executor rejects an over-limit loop before downstream execution", async () => {
+  const flow = {
+    id: "server-loop-bound", name: "Server loop bound", active: false,
+    nodes: [
+      { id: "start", type: "manual", name: "Start", x: 0, y: 0, config: {} },
+      { id: "loop", type: "loop", name: "Loop", x: 200, y: 0, config: { listField: "items", maxItems: 1 } },
+      { id: "log", type: "log", name: "Log", x: 400, y: 0, config: {} }
+    ],
+    edges: [{ id: "a", source: "start", target: "loop" }, { id: "b", source: "loop", target: "log" }]
+  };
+  await assert.rejects(() => executeWorkflowDefinition(flow, { input: { items: [1, 2] } }), /configured limit is 1/);
+});
+
+test("server executor rejects a non-array loop source", async () => {
+  const flow = {
+    id: "server-loop-invalid", name: "Server loop invalid", active: false,
+    nodes: [
+      { id: "start", type: "manual", name: "Start", x: 0, y: 0, config: {} },
+      { id: "loop", type: "loop", name: "Loop", x: 200, y: 0, config: { listField: "items" } }
+    ],
+    edges: [{ id: "a", source: "start", target: "loop" }]
+  };
+  await assert.rejects(() => executeWorkflowDefinition(flow, { input: { items: {} } }), /expected an array/);
+});
