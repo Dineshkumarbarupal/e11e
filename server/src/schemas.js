@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const nodeTypes = ["manual", "set", "http", "if", "merge", "wait", "log"];
+const nodeTypes = ["manual", "webhook", "set", "http", "if", "merge", "wait", "log"];
 const nodeSchema = z.object({
   id: z.string().min(1).max(128),
   type: z.enum(nodeTypes),
