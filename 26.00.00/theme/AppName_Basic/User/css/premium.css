@@ -395,3 +395,6 @@ button:disabled{opacity:.58;cursor:not-allowed;transform:none!important}
 #app .flow-node:focus-visible{outline:2px solid rgba(169,154,255,.95);outline-offset:5px}
 #app .flow-node .port:focus-visible{outline:2px solid #e7e1ff;outline-offset:3px}
 #app .flow-node .input-port{appearance:none;-webkit-appearance:none;flex:0 0 11px;margin:0;background:#111827}
+
+#app .search:focus-within{border-color:rgba(169,154,255,.62);background:rgba(169,154,255,.05);box-shadow:0 0 0 3px rgba(169,154,255,.08)}
+#app .search input:focus-visible{outline:none!important}
