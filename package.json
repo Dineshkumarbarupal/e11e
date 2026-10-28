@@ -14,6 +14,9 @@
     "server:migrate": "npm --prefix server run migrate"
   },
   "devDependencies": {
-    "vite": "^6.1.0"
+    "vite": "^8.3.5"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }
