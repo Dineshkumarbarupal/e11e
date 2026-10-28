@@ -4,7 +4,7 @@ const STORE_KEY = "e11e.flow.workflows.v1";
 const RUNS_KEY = "e11e.flow.runs.v1";
 const API_KEY = "e11e.flow.api-connection.v1";
 let apiConnection = readApiConnection();
-const state = { page: "Overview", currentId: null, selectedNodeId: null, connectFrom: null, connectBranch: null, webhookSetup: null, runs: readRuns(), drag: null, zoom: 1, searchQuery: "" };
+const state = { page: "Overview", currentId: null, selectedNodeId: null, connectFrom: null, connectBranch: null, webhookSetup: null, runs: readRuns(), drag: null, zoom: 1, searchQuery: "", fitPending: false, testInput: JSON.stringify({ example: "hello from e11e", approved: true, user: { name: "Demo User", email: "demo@example.test" } }, null, 2) };
 
 function readRuns() { try { return JSON.parse(localStorage.getItem(RUNS_KEY) || "[]"); } catch { return []; } }
 function loadWorkflows() {
@@ -153,7 +153,7 @@ function toast(message) { const old = document.querySelector(".toast"); old?.rem
 function id(prefix) { return prefix + "_" + Math.random().toString(36).slice(2, 9); }
 function navIcon(name) { return ({Overview:"◈",Workflows:"⌘",Executions:"◷",Integrations:"⧉",Credentials:"♢",Variables:"≋",Settings:"⚙",Documentation:"↗"})[name] || "◇"; }
 function setPage(page) { state.page = page; state.connectFrom = null; state.connectBranch = null; render(); }
-function openEditor(workflowId) { state.currentId = workflowId; state.selectedNodeId = null; state.page = "Editor"; state.connectFrom = null; render(); }
+function openEditor(workflowId) { state.currentId = workflowId; state.selectedNodeId = null; state.page = "Editor"; state.connectFrom = null; state.connectBranch = null; state.fitPending = true; render(); }
 function createWorkflow() {
   const workflow = createDefaultWorkflow();
   workflow.id = id("wf"); workflow.name = "Untitled workflow"; workflow.active = false;
@@ -246,8 +246,10 @@ function renderEditor() {
  const validation=validateWorkflow(wf);
  const node=byId(state.selectedNodeId);
  const ready=wf.nodes.length>0 && !validation.length;
+ const canvasWidth=Math.max(2200,...wf.nodes.map(n=>Math.ceil((n.x+520)/100)*100));
+ const canvasHeight=Math.max(1300,...wf.nodes.map(n=>Math.ceil((n.y+300)/100)*100));
  return `<div class="editor-page">
- <div class="editor-topline"><div class="editor-title"><button class="back-link" data-page="Workflows">← Workflows</button><span class="slash">/</span><input class="workflow-name-input" id="workflow-name" value="${esc(wf.name)}" aria-label="Workflow name"><span class="save-state"><i></i> Saved locally</span></div><div class="editor-actions"><button class="btn-quiet" id="export-current">Export</button>${apiConnection?'<button class="btn-quiet" id="sync-current">Sync to server</button><button class="btn-quiet" id="queue-server-run">Queue server run</button>':""}<button class="btn-quiet" id="toggle-active">${wf.active?"Deactivate":"Activate"}</button><button class="btn-primary" id="run-workflow">▶ Test workflow</button></div></div>
+ <div class="editor-topline"><div class="editor-title"><button class="back-link" data-page="Workflows">← Workflows</button><span class="slash">/</span><input class="workflow-name-input" id="workflow-name" value="${esc(wf.name)}" aria-label="Workflow name"><span class="save-state"><i></i> Saved locally</span></div><div class="editor-actions"><button class="btn-quiet" id="export-current">Export</button>${apiConnection?'<button class="btn-quiet" id="sync-current">Sync to server</button><button class="btn-quiet" id="queue-server-run">Queue server run</button>':""}<button class="btn-quiet" id="toggle-active">${wf.active?"Clear active flag":"Set active flag"}</button><button class="btn-primary" id="run-workflow">▶ Test workflow</button></div></div>
  <div class="editor-toolbar"><div class="toolbar-left"><span class="tiny-pill">${wf.nodes.length} nodes</span><span class="tiny-pill">${wf.edges.length} connections</span>${validation.length?`<span class="pill-error">${validation.length} validation error(s)</span>`:'<span class="pill-ok">✓ Valid structure</span>'}</div><div class="toolbar-right"><button class="icon-btn" id="zoom-out" title="Zoom out">−</button><span id="zoom-level">100%</span><button class="icon-btn" id="zoom-in" title="Zoom in">＋</button><button class="icon-btn" id="fit-canvas" title="Fit view">⤢</button></div></div>
  <div class="editor-layout">
   <aside class="node-palette"><div class="palette-head"><strong>Node library</strong><span class="tiny-pill">${Object.keys(NODE_TYPES).length}</span></div><p class="palette-hint">Select a node to add it to the canvas.</p>
@@ -255,10 +257,10 @@ function renderEditor() {
    <div class="palette-section">CORE NODES</div>${["set","http","if","merge","wait","log"].map(t=>paletteButton(t)).join("")}
    <div class="palette-help">Tip: connect a node's right handle to the next node's left handle. Click any node to edit its configuration.</div>
   </aside>
-  <section class="canvas-shell"><div class="canvas-notice ${state.connectFrom?"connecting":""}" id="canvas-notice">${state.connectFrom?"Connection mode: select an input handle on the target node.": "Canvas · Drag nodes to arrange the flow"}</div><div class="canvas-scroll" id="canvas-scroll"><div class="canvas-inner" id="canvas-inner" style="transform:scale(${state.zoom});width:2200px;height:1300px"><svg class="edge-layer" id="edge-layer" width="2200" height="1300" viewBox="0 0 2200 1300" aria-label="Workflow connections"><defs><marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#8f86ed"/></marker></defs>${renderEdges(wf)}</svg>${wf.nodes.map(n=>renderNode(n)).join("")}<div class="canvas-watermark">e11e FLOW <span>VISUAL WORKFLOW</span></div></div></div><div class="canvas-legend"><span><i class="legend-dot manual"></i>Trigger</span><span><i class="legend-dot core"></i>Action</span><span><i class="legend-dot if"></i>Condition</span><span class="legend-note">Click output handle → input handle to connect</span></div></section>
+  <section class="canvas-shell"><div class="canvas-notice ${state.connectFrom?"connecting":""}" id="canvas-notice">${state.connectFrom?"Connection mode: select an input handle on the target node.": "Canvas · Drag nodes to arrange the flow"}</div><div class="canvas-scroll" id="canvas-scroll"><div class="canvas-inner" id="canvas-inner" style="transform:scale(${state.zoom});width:${canvasWidth}px;height:${canvasHeight}px"><svg class="edge-layer" id="edge-layer" width="${canvasWidth}" height="${canvasHeight}" viewBox="0 0 ${canvasWidth} ${canvasHeight}" aria-label="Workflow connections"><defs><marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#8f86ed"/></marker></defs>${renderEdges(wf)}</svg>${wf.nodes.map(n=>renderNode(n)).join("")}<div class="canvas-watermark">e11e FLOW <span>VISUAL WORKFLOW</span></div></div></div><div class="canvas-legend"><span><i class="legend-dot manual"></i>Trigger</span><span><i class="legend-dot core"></i>Action</span><span><i class="legend-dot if"></i>Condition</span><span class="legend-note">Click output handle → input handle to connect</span></div></section>
   <aside class="inspector"><div class="inspector-head"><div><strong>Node settings</strong><small>${node?esc(node.name):"Select a node"}</small></div>${node?'<button class="icon-btn" id="delete-node" title="Delete node">⌫</button>':""}</div>${node?renderInspector(node):'<div class="inspector-empty"><div class="empty-node-icon">◇</div><b>No node selected</b><p>Select a node on the canvas to inspect its settings, or choose one from the node library.</p></div>'}</aside>
  </div>
- <div class="run-drawer"><div class="run-drawer-head"><div><b>Test output</b><span>${state.lastRun?esc(state.lastRun.status):"Ready to test"}</span></div><button class="text-link" id="toggle-output">${state.outputCollapsed?"Show":"Hide"}</button></div><div class="run-output ${state.outputCollapsed?"collapsed":""}" id="run-output">${renderLastRun()}</div></div>
+ <div class="run-drawer"><div class="run-drawer-head"><div><b>Test output</b><span>${state.lastRun?esc(state.lastRun.status):"Ready to test"}</span></div><button class="text-link" id="toggle-output">${state.outputCollapsed?"Show":"Hide"}</button></div><div class="run-input-panel"><label class="field-label" for="run-input">TEST INPUT <span class="run-input-hint">JSON object passed to the trigger</span><textarea class="field-input code-input run-input" id="run-input" rows="5" spellcheck="false">${esc(state.testInput)}</textarea></label><div class="run-input-footer"><span>Tip: IF rules can read fields such as <code>approved</code> or <code>user.name</code>.</span><button class="btn-quiet btn-small" id="reset-test-input">Reset sample</button></div></div><div class="run-output ${state.outputCollapsed?"collapsed":""}" id="run-output">${renderLastRun()}</div></div>
  </div>`;
 }
 function paletteButton(type) { const def=NODE_TYPES[type]; return `<button class="palette-node" data-add-node="${type}"><span class="palette-icon ${def.color}">${def.icon}</span><span><b>${def.label}</b><small>${({manual:"Start the workflow",webhook:"Accept authenticated HTTP POST",set:"Set or transform fields",http:"Call an HTTP endpoint",if:"Route on a condition",merge:"Combine object inputs",wait:"Pause briefly",log:"Inspect the output"})[type]}</small></span><span class="palette-plus">＋</span></button>`; }
@@ -311,6 +313,8 @@ function renderLastRun() {
 }
 function render() {
  const root=document.querySelector("#app");
+ const previousCanvas=state.page==="Editor"&&!state.fitPending?document.querySelector("#canvas-scroll"):null;
+ const previousCanvasScroll=previousCanvas?{left:previousCanvas.scrollLeft,top:previousCanvas.scrollTop}:null;
  const pages=["Overview","Workflows","Executions","Integrations","Credentials","Variables","Settings","Documentation"];
  root.innerHTML=`<div class="app-shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">e</div><div><div class="brand-name">e11e <span style="color:#9d91ff">Flow</span></div><div class="brand-sub">Automation studio</div></div></div><div class="workspace-badge"><span>◈ &nbsp; Personal workspace</span><small>${apiConnection?"Server session":"Local prototype"}</small></div><div><div class="nav-label">Workspace</div><nav class="nav">${pages.slice(0,5).map(p=>`<button class="${state.page===p?"active":""}" data-page="${p}"><span class="ico">${navIcon(p)}</span>${p}</button>`).join("")}</nav></div><div><div class="nav-label">Manage</div><nav class="nav">${pages.slice(5).map(p=>`<button class="${state.page===p?"active":""}" data-page="${p}"><span class="ico">${navIcon(p)}</span>${p}</button>`).join("")}</nav></div><div class="side-bottom"><div class="health"><div class="health-top"><span class="dot"></span> Client status <span style="margin-left:auto;color:#60d7a5">Online</span></div><p>${apiConnection?"API: "+esc(apiConnection.baseUrl):"Browser-local mode. Connect an API in Settings for shared workflows."}</p><div class="mini-meter"><span></span></div></div><div class="user-profile"><div class="avatar">e</div><div>e11e workspace<small>Browser session</small></div></div></div></aside><main class="main"><header class="topbar"><div class="crumb">Workspace <span style="color:#596580">/</span> <strong>${state.page==="Editor"?"Workflow editor":state.page}</strong></div><div class="top-actions"><label class="search" for="global-search"><span aria-hidden="true">⌕</span><input id="global-search" type="search" value="${esc(state.searchQuery)}" placeholder="Search workflows" aria-label="Search workflows"><span class="kbd">⌘ K</span></label><button class="icon-btn" id="help-button" title="Prototype notes">ⓘ</button><div class="avatar">e</div></div></header><div class="content ${state.page==="Editor"?"content-editor":""}">${state.page==="Overview"?renderDashboard():state.page==="Workflows"?renderWorkflows():state.page==="Executions"?renderExecutions():state.page==="Editor"?renderEditor():state.page==="Settings"?renderSettings():state.page==="Credentials"?renderCredentials():renderPlaceholder(state.page)}</div></main></div>`;
  root.querySelector("#global-search")?.addEventListener("keydown",event=>{if(event.key==="Enter"){state.searchQuery=event.currentTarget.value.trim();state.page="Workflows";render();document.querySelector("#global-search")?.focus();}});
@@ -325,6 +329,7 @@ function render() {
  if(state.page==="Settings") bindSettings();
  if(state.page==="Credentials") bindCredentials();
  if(state.page==="Editor") bindEditor();
+ if(state.page==="Editor" && previousCanvasScroll && !state.fitPending) requestAnimationFrame(()=>{const viewport=document.querySelector("#canvas-scroll");if(viewport){viewport.scrollLeft=previousCanvasScroll.left;viewport.scrollTop=previousCanvasScroll.top;}});
 }
 function createFromTemplate(which) {
  const wf=createDefaultWorkflow(); wf.id=id("wf"); wf.name=which==="webhook"?"Webhook intake":which==="conditional"?"Conditional routing":"Data transform";
@@ -354,8 +359,10 @@ function bindEditor() {
  const wf=currentWorkflow();
  document.querySelector("#workflow-name")?.addEventListener("change",e=>{wf.name=e.target.value.trim()||"Untitled workflow";markSaved();persist();});
  document.querySelector("#export-current")?.addEventListener("click",()=>downloadJSON((wf.name||"workflow").toLowerCase().replace(/[^a-z0-9]+/g,"-")+".json",wf));
- document.querySelector("#toggle-active")?.addEventListener("click",()=>{wf.active=!wf.active;markSaved();persist();render();toast(wf.active?"Active flag enabled locally. No live trigger was created.":"Workflow active flag disabled.");});
+ document.querySelector("#toggle-active")?.addEventListener("click",()=>{wf.active=!wf.active;markSaved();persist();render();toast(wf.active?"Active flag saved locally. This does not start a background listener.":"Active flag cleared.");});
  document.querySelector("#run-workflow")?.addEventListener("click",runCurrentWorkflow);
+ document.querySelector("#run-input")?.addEventListener("input",event=>{state.testInput=event.currentTarget.value;});
+ document.querySelector("#reset-test-input")?.addEventListener("click",()=>{state.testInput=JSON.stringify({example:"hello from e11e",approved:true,user:{name:"Demo User",email:"demo@example.test"}},null,2);const input=document.querySelector("#run-input");if(input)input.value=state.testInput;});
  document.querySelector("#sync-current")?.addEventListener("click",async()=>{try{await syncCurrentWorkflow();toast("Workflow saved to the server.");}catch(error){toast(error.message);}});
  document.querySelector("#queue-server-run")?.addEventListener("click",async()=>{try{await queueServerExecution();}catch(error){toast(error.message);}});
  document.querySelector("#generate-webhook-token")?.addEventListener("click",async()=>{try{await generateWebhookToken();}catch(error){toast(error.message);}});
@@ -375,16 +382,32 @@ function bindEditor() {
  document.querySelector("#delete-node")?.addEventListener("click",()=>{const node=byId(state.selectedNodeId);if(!node)return;if(!confirm("Delete this node and its connections?"))return;wf.nodes=wf.nodes.filter(n=>n.id!==node.id);wf.edges=wf.edges.filter(e=>e.source!==node.id&&e.target!==node.id);state.selectedNodeId=null;persist();render();});
  document.querySelector("#zoom-in")?.addEventListener("click",()=>changeZoom(.1));
  document.querySelector("#zoom-out")?.addEventListener("click",()=>changeZoom(-.1));
- document.querySelector("#fit-canvas")?.addEventListener("click",()=>{state.zoom=1;updateZoom();});
+ document.querySelector("#fit-canvas")?.addEventListener("click",fitCanvasView);
  document.querySelector("#toggle-output")?.addEventListener("click",()=>{state.outputCollapsed=!state.outputCollapsed;const panel=document.querySelector("#run-output");panel.classList.toggle("collapsed",state.outputCollapsed);document.querySelector("#toggle-output").textContent=state.outputCollapsed?"Show":"Hide";});
+ if(state.fitPending){state.fitPending=false;fitCanvasView();}
+}
+function findAvailableNodePosition(wf) {
+ const nodes=wf.nodes||[];if(!nodes.length)return {x:120,y:160};
+ const centerX=nodes.reduce((sum,n)=>sum+n.x+108,0)/nodes.length;
+ const centerY=nodes.reduce((sum,n)=>sum+n.y+63,0)/nodes.length;
+ const maxX=Math.max(0,...nodes.map(n=>n.x));const maxY=Math.max(0,...nodes.map(n=>n.y));
+ const cols=Math.min(20,Math.max(7,Math.ceil((maxX+700)/300)));
+ const rows=Math.min(20,Math.max(6,Math.ceil((maxY+600)/200)));
+ const candidates=[];
+ for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){
+  const x=100+col*300,y=130+row*200;
+  const collision=nodes.some(n=>x<n.x+240&&x+240>n.x&&y<n.y+150&&y+150>n.y);
+  if(!collision)candidates.push({x,y,score:Math.pow(x+108-centerX,2)+Math.pow(y+63-centerY,2)});
+ }
+ candidates.sort((a,b)=>a.score-b.score);return candidates[0]?{x:candidates[0].x,y:candidates[0].y}:null;
 }
 function addNode(type) {
- const wf=currentWorkflow();const n={id:id("node"),type,name:NODE_TYPES[type].label,x:120+(wf.nodes.length%4)*80,y:150+(wf.nodes.length%5)*70,config:{}};
+ const wf=currentWorkflow();const position=findAvailableNodePosition(wf);if(!position){toast("The canvas is full. Move or delete a node before adding another.");return;}const n={id:id("node"),type,name:NODE_TYPES[type].label,...position,config:{}};
  if(type==="set")n.config={fields:{result:"ok"},keepInput:true};
  if(type==="http")n.config={url:"https://jsonplaceholder.typicode.com/todos/1",method:"GET",headers:{},timeoutMs:10000};
  if(type==="if")n.config={field:"approved",operator:"equals",value:true};
  if(type==="wait")n.config={ms:250};
- wf.nodes.push(n);wf.updatedAt=new Date().toISOString();state.selectedNodeId=n.id;persist();render();
+ wf.nodes.push(n);wf.updatedAt=new Date().toISOString();state.selectedNodeId=n.id;state.fitPending=true;persist();render();
 }
 function startNodeDrag(event) {
  if(event.button!==0||event.target.closest("button"))return;
@@ -395,15 +418,19 @@ function startNodeDrag(event) {
  const up=()=>{if(state.drag){state.drag.el?.classList.remove("dragging");state.drag=null;currentWorkflow().updatedAt=new Date().toISOString();persist();markSaved();}window.removeEventListener("pointermove",move);window.removeEventListener("pointerup",up);};
  window.addEventListener("pointermove",move);window.addEventListener("pointerup",up,{once:true});
 }
-function refreshEdges(){const layer=document.querySelector("#edge-layer");if(layer)layer.innerHTML='<defs><marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#8f86ed"/></marker></defs>'+renderEdges(currentWorkflow());}
-function changeZoom(delta){state.zoom=Math.min(1.5,Math.max(.5,Math.round((state.zoom+delta)*10)/10));updateZoom();}
+function refreshEdges(){const wf=currentWorkflow();const width=Math.max(2200,...wf.nodes.map(n=>Math.ceil((n.x+520)/100)*100));const height=Math.max(1300,...wf.nodes.map(n=>Math.ceil((n.y+300)/100)*100));const inner=document.querySelector("#canvas-inner");const layer=document.querySelector("#edge-layer");if(inner){inner.style.width=width+"px";inner.style.height=height+"px";}if(layer){layer.setAttribute("width",String(width));layer.setAttribute("height",String(height));layer.setAttribute("viewBox","0 0 "+width+" "+height);layer.innerHTML='<defs><marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#8f86ed"/></marker></defs>'+renderEdges(wf);}}
+function changeZoom(delta){const viewport=document.querySelector("#canvas-scroll");const oldZoom=state.zoom;const centerX=viewport?(viewport.scrollLeft+viewport.clientWidth/2)/oldZoom:0;const centerY=viewport?(viewport.scrollTop+viewport.clientHeight/2)/oldZoom:0;state.zoom=Math.min(1.5,Math.max(.35,Math.round((state.zoom+delta)*10)/10));updateZoom();if(viewport){viewport.scrollLeft=Math.max(0,centerX*state.zoom-viewport.clientWidth/2);viewport.scrollTop=Math.max(0,centerY*state.zoom-viewport.clientHeight/2);}}
 function updateZoom(){const inner=document.querySelector("#canvas-inner");if(inner)inner.style.transform="scale("+state.zoom+")";const label=document.querySelector("#zoom-level");if(label)label.textContent=Math.round(state.zoom*100)+"%";}
+function fitCanvasView(){const viewport=document.querySelector("#canvas-scroll");const wf=currentWorkflow();if(!viewport||!wf?.nodes?.length){state.zoom=1;updateZoom();return;}const minX=Math.min(...wf.nodes.map(n=>n.x)),minY=Math.min(...wf.nodes.map(n=>n.y));const maxX=Math.max(...wf.nodes.map(n=>n.x+216)),maxY=Math.max(...wf.nodes.map(n=>n.y+126));const width=Math.max(1,maxX-minX),height=Math.max(1,maxY-minY);const availableWidth=Math.max(160,viewport.clientWidth-54),availableHeight=Math.max(160,viewport.clientHeight-104);state.zoom=Math.max(.35,Math.min(1.1,availableWidth/width,availableHeight/height));updateZoom();requestAnimationFrame(()=>{const current=document.querySelector("#canvas-scroll");if(current){current.scrollLeft=Math.max(0,Math.round(minX*state.zoom-28));current.scrollTop=Math.max(0,Math.round(minY*state.zoom-44));}});}
 function syncNodeCard(n){const el=document.querySelector('[data-node="'+CSS.escape(n.id)+'"]');if(!el)return;const desc=el.querySelector(".node-description");if(desc)desc.textContent=nodeSummary(n);const title=el.querySelector(".node-heading b");if(title)title.textContent=n.name;}
 function markSaved(){const s=document.querySelector(".save-state");if(s)s.innerHTML="<i></i> Saved locally";}
 async function runCurrentWorkflow() {
- const wf=currentWorkflow();const button=document.querySelector("#run-workflow");button.disabled=true;button.textContent="Running…";
+ const wf=currentWorkflow();const button=document.querySelector("#run-workflow");let input;
+ try{input=JSON.parse(document.querySelector("#run-input")?.value||state.testInput||"{}");if(!input||typeof input!=="object"||Array.isArray(input))throw new Error("Test input must be a JSON object.");state.testInput=JSON.stringify(input,null,2);}catch(error){toast("Invalid test input: "+error.message);return;}
+ button.disabled=true;button.textContent="Running…";
  try {
-  const result=await executeWorkflow(wf,{input:{example:"hello from e11e",approved:true,user:{name:"Demo User",email:"demo@example.test"}},maxSteps:100});
+  const selected=byId(state.selectedNodeId);const triggerNodeId=selected?.type==="webhook"?selected.id:undefined;
+  const result=await executeWorkflow(wf,{input,maxSteps:100,...(triggerNodeId?{triggerNodeId}:{})});
   result.workflowName=wf.name;result.workflowId=wf.id;state.lastRun=result;const runs=readRuns();runs.unshift(result);localStorage.setItem(RUNS_KEY,JSON.stringify(runs.slice(0,100)));state.runs=runs.slice(0,100);state.outputCollapsed=false;
   const output=document.querySelector("#run-output");if(output){output.classList.remove("collapsed");output.innerHTML=renderLastRun();}
   const head=document.querySelector(".run-drawer-head span");if(head)head.textContent="success · "+result.nodeRuns.length+" steps";
