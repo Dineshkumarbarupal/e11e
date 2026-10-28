@@ -2,6 +2,8 @@ import { NODE_TYPES, createDefaultWorkflow, executeWorkflow, validateWorkflow } 
 
 const STORE_KEY = "e11e.flow.workflows.v1";
 const RUNS_KEY = "e11e.flow.runs.v1";
+const API_KEY = "e11e.flow.api-connection.v1";
+let apiConnection = readApiConnection();
 const state = { page: "Overview", currentId: null, selectedNodeId: null, connectFrom: null, connectBranch: null, runs: readRuns(), drag: null, zoom: 1 };
 
 function readRuns() { try { return JSON.parse(localStorage.getItem(RUNS_KEY) || "[]"); } catch { return []; } }
@@ -20,6 +22,115 @@ function loadWorkflows() {
 }
 let workflows = loadWorkflows();
 function persist() { localStorage.setItem(STORE_KEY, JSON.stringify(workflows)); }
+
+function readApiConnection() {
+  try { return JSON.parse(sessionStorage.getItem(API_KEY) || "null"); } catch { return null; }
+}
+async function apiRequest(path, options = {}) {
+  if (!apiConnection?.baseUrl || !apiConnection?.token) throw new Error("Connect to the e11e API in Settings first.");
+  const headers = { ...(options.headers || {}) };
+  if (options.body !== undefined) headers["content-type"] = "application/json";
+  headers.authorization = "Bearer " + apiConnection.token;
+  const response = await fetch(apiConnection.baseUrl + path, { ...options, headers });
+  if (response.status === 204) return null;
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || ("API request failed with status " + response.status));
+  return data;
+}
+function workspaceApiPath() { return "/api/workspaces/" + encodeURIComponent(apiConnection.workspaceId); }
+function workflowPayload(flow) { return { id: flow.id, name: flow.name, active: Boolean(flow.active), nodes: flow.nodes, edges: flow.edges, updatedAt: flow.updatedAt, version: flow.version }; }
+async function syncFromServer(shouldRender = true) {
+  const result = await apiRequest(workspaceApiPath() + "/workflows");
+  if (Array.isArray(result.workflows) && result.workflows.length) {
+    workflows = result.workflows;
+    persist();
+    if (!workflows.some(flow => flow.id === state.currentId)) state.currentId = workflows[0].id;
+  }
+  if (shouldRender) render();
+  return result.workflows || [];
+}
+async function syncCurrentWorkflow(shouldRender = true) {
+  const flow = currentWorkflow();
+  const remote = await apiRequest(workspaceApiPath() + "/workflows");
+  const exists = (remote.workflows || []).some(item => item.id === flow.id);
+  const path = exists ? workspaceApiPath() + "/workflows/" + encodeURIComponent(flow.id) : workspaceApiPath() + "/workflows";
+  const result = await apiRequest(path, { method: exists ? "PUT" : "POST", body: JSON.stringify(workflowPayload(flow)) });
+  const saved = result.workflow;
+  const index = workflows.findIndex(item => item === flow);
+  if (index >= 0) workflows[index] = saved;
+  state.currentId = saved.id;
+  persist();
+  if (shouldRender) render();
+  return saved;
+}
+async function syncAllWorkflows() {
+  const remote = await apiRequest(workspaceApiPath() + "/workflows");
+  const remoteIds = new Set((remote.workflows || []).map(flow => flow.id));
+  const synced = [];
+  for (const flow of workflows) {
+    const exists = remoteIds.has(flow.id);
+    const path = exists ? workspaceApiPath() + "/workflows/" + encodeURIComponent(flow.id) : workspaceApiPath() + "/workflows";
+    const result = await apiRequest(path, { method: exists ? "PUT" : "POST", body: JSON.stringify(workflowPayload(flow)) });
+    synced.push(result.workflow);
+    remoteIds.add(result.workflow.id);
+  }
+  const previousId = state.currentId;
+  workflows = synced;
+  persist();
+  state.currentId = synced.find(flow => flow.id === previousId)?.id || synced[0]?.id || null;
+  render();
+  toast("Synced " + synced.length + " workflow(s) with the server.");
+}
+async function queueServerExecution() {
+  const flow = await syncCurrentWorkflow(false);
+  const result = await apiRequest(workspaceApiPath() + "/workflows/" + encodeURIComponent(flow.id) + "/executions", {
+    method: "POST",
+    body: JSON.stringify({ input: { example: "e11e server test", approved: true, user: { name: "Demo User" } } })
+  });
+  toast("Server execution queued: " + result.execution.id);
+}
+function renderSettings() {
+  const connection = apiConnection
+    ? '<div class="notice"><b>Connected session:</b> ' + esc(apiConnection.email) + '<br>API: ' + esc(apiConnection.baseUrl) + '<br>Workspace: ' + esc(apiConnection.workspaceId) + '<br>Token is held in sessionStorage for this browser tab. The API JWT expires after 30 minutes.</div><div class="settings-actions"><button class="btn-quiet" id="pull-server">Pull workflows from server</button><button class="btn-primary" id="push-server">Push local workflows</button><button class="btn-quiet" id="disconnect-api">Disconnect session</button></div>'
+    : '<div class="notice">Not connected. Use the browser-only editor without an API, or connect to a separately running e11e server.</div>';
+  return '<div class="page-head"><div><div class="eyebrow">Workspace settings</div><h1>Server connection</h1><p>Sign in to the e11e API to sync workflow definitions and queue server-side test runs.</p></div></div><section class="panel settings-panel"><div class="panel-head"><div><h2>API connection</h2><p>For local development, the default API URL is http://127.0.0.1:8787.</p></div></div>' + connection + '<div class="settings-form"><label class="field-label">API base URL<input class="field-input" id="api-base" value="' + esc(apiConnection?.baseUrl || "http://127.0.0.1:8787") + '" placeholder="https://api.example.com"></label><label class="field-label">Name (required for account creation)<input class="field-input" id="api-name" placeholder="Your name"></label><label class="field-label">Email<input class="field-input" id="api-email" type="email" value="' + esc(apiConnection?.email || "") + '" placeholder="you@example.com"></label><label class="field-label">Password<input class="field-input" id="api-password" type="password" autocomplete="current-password" placeholder="At least 12 characters for registration"></label><div class="settings-actions"><button class="btn-primary" id="api-login">Sign in</button><button class="btn-quiet" id="api-register">Create account</button></div></div><div class="notice"><b>Security:</b> this UI stores the short-lived JWT in sessionStorage so it does not survive a browser-tab session. Do not use real business credentials in this prototype. Configure the API's CORS_ORIGINS to include the exact frontend origin.</div></section><section class="panel settings-panel"><div class="panel-head"><div><h2>Current deployment limits</h2><p>The browser editor remains usable without a server connection.</p></div></div><div class="info-block">Local test runs execute in the browser. Server-queued runs execute only supported safe nodes (Manual, Edit Fields, IF, Merge, Wait and Log). Server-side HTTP nodes deliberately fail until outbound network security and credential references are implemented. Webhook/schedule triggers and the enterprise integration catalog are not available yet.</div></section>';
+}
+async function connectApi(mode) {
+  let baseUrl = (document.querySelector("#api-base")?.value || "").trim();
+  while (baseUrl.endsWith("/")) baseUrl = baseUrl.slice(0, -1);
+  const email = (document.querySelector("#api-email")?.value || "").trim();
+  const password = document.querySelector("#api-password")?.value || "";
+  const name = (document.querySelector("#api-name")?.value || "").trim();
+  if (!(baseUrl.startsWith("http://") || baseUrl.startsWith("https://"))) throw new Error("Enter an API base URL beginning with http:// or https://.");
+  const payload = mode === "register" ? { email, name, password } : { email, password };
+  if (mode === "register" && !name) throw new Error("Enter your name to create an account.");
+  const response = await fetch(baseUrl + (mode === "register" ? "/api/auth/register" : "/api/auth/login"), {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || ("Sign-in failed with status " + response.status));
+  const workspaceId = data.workspace?.id || data.workspaces?.[0]?.id;
+  if (!workspaceId) throw new Error("The API account has no workspace.");
+  apiConnection = { baseUrl, token: data.token, workspaceId, email: data.user?.email || email };
+  sessionStorage.setItem(API_KEY, JSON.stringify(apiConnection));
+  const remote = await syncFromServer(false);
+  state.page = "Workflows";
+  render();
+  toast("Connected to the API. " + remote.length + " server workflow(s) found.");
+}
+function bindSettings() {
+  document.querySelector("#api-login")?.addEventListener("click", async () => { try { await connectApi("login"); } catch (error) { toast(error.message); } });
+  document.querySelector("#api-register")?.addEventListener("click", async () => { try { await connectApi("register"); } catch (error) { toast(error.message); } });
+  document.querySelector("#pull-server")?.addEventListener("click", async () => { try { const result = await syncFromServer(); toast("Pulled " + result.length + " workflow(s)."); } catch (error) { toast(error.message); } });
+  document.querySelector("#push-server")?.addEventListener("click", async () => { try { await syncAllWorkflows(); } catch (error) { toast(error.message); } });
+  document.querySelector("#disconnect-api")?.addEventListener("click", () => { sessionStorage.removeItem(API_KEY); apiConnection = null; state.serverRuns = null; render(); toast("Disconnected this browser session. The server token will expire independently."); });
+}
+async function loadServerExecutions() {
+  const result = await apiRequest(workspaceApiPath() + "/executions");
+  state.serverRuns = result.executions || [];
+  const target = document.querySelector("#server-executions");
+  if (target) target.innerHTML = '<div class="server-runs-title">Server queue history (' + state.serverRuns.length + ')</div>' + (state.serverRuns.length ? '<div class="table-wrap"><table class="data-table"><thead><tr><th>Execution</th><th>Workflow</th><th>Status</th><th>Queued</th></tr></thead><tbody>' + state.serverRuns.map(run => '<tr><td>' + esc(run.id) + '</td><td>' + esc(run.workflowId) + '</td><td>' + esc(run.status) + '</td><td>' + esc(run.queuedAt ? new Date(run.queuedAt).toLocaleString() : "") + '</td></tr>').join("") + '</tbody></table></div>' : '<div class="empty-state">No server executions yet.</div>');
+}
 function currentWorkflow() { return workflows.find(w => w.id === state.currentId) || workflows[0]; }
 function byId(id) { return currentWorkflow().nodes.find(n => n.id === id); }
 function esc(value) { return String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
@@ -62,15 +173,15 @@ function renderDashboard() {
 }
 function renderWorkflows() {
  return `<div class="page-head"><div><div class="eyebrow">Automation library</div><h1>Workflows</h1><p>Create, edit, export and test your workflows. Saved locally to this browser.</p></div><button class="btn-primary" id="create-workflow">＋ Create workflow</button></div>
- <section class="panel"><div class="panel-head"><div><h2>All workflows</h2><p>${workflows.length} saved workflow definitions</p></div><button class="btn-quiet" id="export-all">Export all JSON</button><label class="btn-quiet file-label">Import JSON<input type="file" id="import-all" accept="application/json,.json" hidden></label></div>
+ <section class="panel"><div class="panel-head"><div><h2>All workflows</h2><p>${workflows.length} saved workflow definitions</p></div><button class="btn-quiet" id="export-all">Export all JSON</button><button class="btn-quiet" id="sync-server">↻ Sync with server</button><label class="btn-quiet file-label">Import JSON<input type="file" id="import-all" accept="application/json,.json" hidden></label></div>
  <div class="table-wrap"><table class="data-table"><thead><tr><th>Name</th><th>Nodes</th><th>Status</th><th>Last updated</th><th>Actions</th></tr></thead><tbody>${workflows.map(w=>`<tr><td><button class="table-title" data-open="${esc(w.id)}">${esc(w.name)}</button><small class="table-sub">${esc(w.id)}</small></td><td>${w.nodes.length}</td><td><span class="status ${w.active?"":"paused"}">${w.active?"Active flag":"Inactive"}</span></td><td>${esc(new Date(w.updatedAt).toLocaleString())}</td><td><button class="btn-quiet btn-small" data-open="${esc(w.id)}">Edit</button> <button class="btn-quiet btn-small" data-delete="${esc(w.id)}">Delete</button></td></tr>`).join("")}</tbody></table></div></section>
  <div class="notice">Workflow activation is currently a local UI flag only. Webhook listeners, schedules, credentials, collaboration and server persistence are not enabled in this version.</div>`;
 }
 function renderExecutions() {
  const runs=readRuns();
- return `<div class="page-head"><div><div class="eyebrow">Observability</div><h1>Execution history</h1><p>Inspect node-by-node results from local test runs.</p></div><button class="btn-quiet" id="clear-runs">Clear history</button></div><section class="panel"><div class="panel-head"><div><h2>Recent test runs</h2><p>${runs.length} local run records</p></div><button class="btn-quiet" id="export-runs">Export JSON</button></div>
+ return `<div class="page-head"><div><div class="eyebrow">Observability</div><h1>Execution history</h1><p>Inspect node-by-node results from local test runs.</p></div><button class="btn-quiet" id="clear-runs">Clear history</button></div><section class="panel"><div class="panel-head"><div><h2>Recent test runs</h2><p>${runs.length} local run records</p></div><button class="btn-quiet" id="export-runs">Export JSON</button>${apiConnection?'<button class="btn-quiet" id="load-server-runs">Load server runs</button>':""}</div>
  ${runs.length?'<div class="table-wrap"><table class="data-table"><thead><tr><th>Run</th><th>Workflow</th><th>Status</th><th>Steps</th><th>Started</th><th></th></tr></thead><tbody>'+runs.map(r=>`<tr><td>${esc(r.id)}</td><td>${esc(r.workflowName||"Workflow")}</td><td><span class="status ${r.status==="success"?"":"paused"}">${esc(r.status)}</span></td><td>${r.nodeRuns?.length||0}</td><td>${esc(new Date(r.startedAt).toLocaleString())}</td><td><button class="btn-quiet btn-small" data-run-detail="${esc(r.id)}">Details</button></td></tr>`).join("")+'</tbody></table></div>':'<div class="empty-state">No executions recorded yet. Go to Workflows, open a workflow and run a test.</div>'}
- <div id="run-details"></div></section><div class="notice">HTTP Request nodes use browser fetch; cross-origin endpoints may reject requests due to CORS. This is not a secure server-side execution engine.</div>`;
+ <div id="run-details"></div><div id="server-executions"></div></section><div class="notice">HTTP Request nodes use browser fetch; cross-origin endpoints may reject requests due to CORS. This is not a secure server-side execution engine.</div>`;
 }
 function renderPlaceholder(page) {
  const copy = {Integrations:["Integration registry","App connectors, OAuth lifecycle and reusable integration packages are planned, not implemented."],Credentials:["Credentials vault","Do not put real secrets into workflow fields. A server-side encrypted credentials vault is a required future milestone."],Variables:["Environment variables","Per-environment variables and secret references will be provided by the backend. Browser-local values are not secrets."],Settings:["Workspace settings","User authentication, tenants, RBAC, audit policies and org settings require the backend milestone."],Documentation:["Developer documentation","Review the architecture and roadmap in the repository README and docs folder."]}[page]||["Workspace","Choose a section from the navigation."];
@@ -82,7 +193,7 @@ function renderEditor() {
  const node=byId(state.selectedNodeId);
  const ready=wf.nodes.length>0 && !validation.length;
  return `<div class="editor-page">
- <div class="editor-topline"><div class="editor-title"><button class="back-link" data-page="Workflows">← Workflows</button><span class="slash">/</span><input class="workflow-name-input" id="workflow-name" value="${esc(wf.name)}" aria-label="Workflow name"><span class="save-state"><i></i> Saved locally</span></div><div class="editor-actions"><button class="btn-quiet" id="export-current">Export</button><button class="btn-quiet" id="toggle-active">${wf.active?"Deactivate":"Activate"}</button><button class="btn-primary" id="run-workflow">▶ Test workflow</button></div></div>
+ <div class="editor-topline"><div class="editor-title"><button class="back-link" data-page="Workflows">← Workflows</button><span class="slash">/</span><input class="workflow-name-input" id="workflow-name" value="${esc(wf.name)}" aria-label="Workflow name"><span class="save-state"><i></i> Saved locally</span></div><div class="editor-actions"><button class="btn-quiet" id="export-current">Export</button>${apiConnection?'<button class="btn-quiet" id="sync-current">Sync to server</button><button class="btn-quiet" id="queue-server-run">Queue server run</button>':""}<button class="btn-quiet" id="toggle-active">${wf.active?"Deactivate":"Activate"}</button><button class="btn-primary" id="run-workflow">▶ Test workflow</button></div></div>
  <div class="editor-toolbar"><div class="toolbar-left"><span class="tiny-pill">${wf.nodes.length} nodes</span><span class="tiny-pill">${wf.edges.length} connections</span>${validation.length?`<span class="pill-error">${validation.length} validation error(s)</span>`:'<span class="pill-ok">✓ Valid structure</span>'}</div><div class="toolbar-right"><button class="icon-btn" id="zoom-out" title="Zoom out">−</button><span id="zoom-level">100%</span><button class="icon-btn" id="zoom-in" title="Zoom in">＋</button><button class="icon-btn" id="fit-canvas" title="Fit view">⤢</button></div></div>
  <div class="editor-layout">
   <aside class="node-palette"><div class="palette-head"><strong>Node library</strong><span class="tiny-pill">${Object.keys(NODE_TYPES).length}</span></div><p class="palette-hint">Select a node to add it to the canvas.</p>
@@ -139,7 +250,7 @@ function renderLastRun() {
 function render() {
  const root=document.querySelector("#app");
  const pages=["Overview","Workflows","Executions","Integrations","Credentials","Variables","Settings","Documentation"];
- root.innerHTML=`<div class="app-shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">e</div><div><div class="brand-name">e11e <span style="color:#9d91ff">Flow</span></div><div class="brand-sub">Automation studio</div></div></div><div class="workspace-badge"><span>◈ &nbsp; Personal workspace</span><small>Local prototype</small></div><div><div class="nav-label">Workspace</div><nav class="nav">${pages.slice(0,5).map(p=>`<button class="${state.page===p?"active":""}" data-page="${p}"><span class="ico">${navIcon(p)}</span>${p}</button>`).join("")}</nav></div><div><div class="nav-label">Manage</div><nav class="nav">${pages.slice(5).map(p=>`<button class="${state.page===p?"active":""}" data-page="${p}"><span class="ico">${navIcon(p)}</span>${p}</button>`).join("")}</nav></div><div class="side-bottom"><div class="health"><div class="health-top"><span class="dot"></span> Client status <span style="margin-left:auto;color:#60d7a5">Online</span></div><p>Browser-local mode. Authentication, server runtime and shared database are not connected.</p><div class="mini-meter"><span></span></div></div><div class="user-profile"><div class="avatar">e</div><div>e11e workspace<small>Browser session</small></div></div></div></aside><main class="main"><header class="topbar"><div class="crumb">Workspace <span style="color:#596580">/</span> <strong>${state.page==="Editor"?"Workflow editor":state.page}</strong></div><div class="top-actions"><div class="search">⌕ &nbsp; Search workflows <span class="kbd">⌘ K</span></div><button class="icon-btn" id="help-button" title="Prototype notes">ⓘ</button><div class="avatar">e</div></div></header><div class="content ${state.page==="Editor"?"content-editor":""}">${state.page==="Overview"?renderDashboard():state.page==="Workflows"?renderWorkflows():state.page==="Executions"?renderExecutions():state.page==="Editor"?renderEditor():renderPlaceholder(state.page)}</div></main></div>`;
+ root.innerHTML=`<div class="app-shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">e</div><div><div class="brand-name">e11e <span style="color:#9d91ff">Flow</span></div><div class="brand-sub">Automation studio</div></div></div><div class="workspace-badge"><span>◈ &nbsp; Personal workspace</span><small>${apiConnection?"Server session":"Local prototype"}</small></div><div><div class="nav-label">Workspace</div><nav class="nav">${pages.slice(0,5).map(p=>`<button class="${state.page===p?"active":""}" data-page="${p}"><span class="ico">${navIcon(p)}</span>${p}</button>`).join("")}</nav></div><div><div class="nav-label">Manage</div><nav class="nav">${pages.slice(5).map(p=>`<button class="${state.page===p?"active":""}" data-page="${p}"><span class="ico">${navIcon(p)}</span>${p}</button>`).join("")}</nav></div><div class="side-bottom"><div class="health"><div class="health-top"><span class="dot"></span> Client status <span style="margin-left:auto;color:#60d7a5">Online</span></div><p>${apiConnection?"API: "+esc(apiConnection.baseUrl):"Browser-local mode. Connect an API in Settings for shared workflows."}</p><div class="mini-meter"><span></span></div></div><div class="user-profile"><div class="avatar">e</div><div>e11e workspace<small>Browser session</small></div></div></div></aside><main class="main"><header class="topbar"><div class="crumb">Workspace <span style="color:#596580">/</span> <strong>${state.page==="Editor"?"Workflow editor":state.page}</strong></div><div class="top-actions"><div class="search">⌕ &nbsp; Search workflows <span class="kbd">⌘ K</span></div><button class="icon-btn" id="help-button" title="Prototype notes">ⓘ</button><div class="avatar">e</div></div></header><div class="content ${state.page==="Editor"?"content-editor":""}">${state.page==="Overview"?renderDashboard():state.page==="Workflows"?renderWorkflows():state.page==="Executions"?renderExecutions():state.page==="Editor"?renderEditor():state.page==="Settings"?renderSettings():renderPlaceholder(state.page)}</div></main></div>`;
  root.querySelectorAll("[data-page]").forEach(b=>b.addEventListener("click",()=>setPage(b.dataset.page)));
  root.querySelectorAll("[data-open]").forEach(b=>b.addEventListener("click",()=>openEditor(b.dataset.open)));
  root.querySelector("#create-workflow")?.addEventListener("click",createWorkflow);
@@ -147,6 +258,7 @@ function render() {
  root.querySelector("#help-button")?.addEventListener("click",()=>toast("Prototype notice: workflow data is saved only in this browser. Do not store secrets here."));
  if(state.page==="Workflows") bindWorkflowList();
  if(state.page==="Executions") bindExecutions();
+ if(state.page==="Settings") bindSettings();
  if(state.page==="Editor") bindEditor();
 }
 function createFromTemplate(which) {
@@ -157,12 +269,14 @@ function createFromTemplate(which) {
 }
 function bindWorkflowList() {
  document.querySelector("#export-all")?.addEventListener("click",()=>downloadJSON("e11e-workflows.json",workflows));
+ document.querySelector("#sync-server")?.addEventListener("click",async()=>{if(!apiConnection){state.page="Settings";render();toast("Connect to the API in Settings first.");return;}try{await syncAllWorkflows();}catch(error){toast(error.message);}});
  document.querySelector("#import-all")?.addEventListener("change",async e=>{try{const text=await e.target.files[0]?.text();if(!text)return;const parsed=JSON.parse(text);const items=Array.isArray(parsed)?parsed:[parsed];for(const w of items){const errors=validateWorkflow(w);if(errors.length)throw new Error(errors.join(" "));if(!w.id)w.id=id("wf");}workflows=[...items,...workflows.filter(old=>!items.some(w=>w.id===old.id))];persist();toast("Workflow JSON imported.");render();}catch(err){toast("Import failed: "+err.message);}});
  document.querySelectorAll("[data-delete]").forEach(b=>b.addEventListener("click",()=>{if(!confirm("Delete this workflow from this browser?"))return;workflows=workflows.filter(w=>w.id!==b.dataset.delete);persist();render();}));
 }
 function bindExecutions() {
  document.querySelector("#clear-runs")?.addEventListener("click",()=>{if(confirm("Clear local execution history?")){state.runs=[];localStorage.setItem(RUNS_KEY,"[]");render();}});
  document.querySelector("#export-runs")?.addEventListener("click",()=>downloadJSON("e11e-executions.json",readRuns()));
+ document.querySelector("#load-server-runs")?.addEventListener("click",async()=>{try{await loadServerExecutions();}catch(error){toast(error.message);}});
  document.querySelectorAll("[data-run-detail]").forEach(b=>b.addEventListener("click",()=>{const r=readRuns().find(run=>run.id===b.dataset.runDetail);const target=document.querySelector("#run-details");if(target)target.innerHTML=`<div class="notice"><b>Run ${esc(r?.id||"")}</b><pre>${esc(JSON.stringify(r,null,2))}</pre></div>`;}));
 }
 function downloadJSON(name,data) { const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"}); const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;a.click();URL.revokeObjectURL(url); }
@@ -172,6 +286,8 @@ function bindEditor() {
  document.querySelector("#export-current")?.addEventListener("click",()=>downloadJSON((wf.name||"workflow").toLowerCase().replace(/[^a-z0-9]+/g,"-")+".json",wf));
  document.querySelector("#toggle-active")?.addEventListener("click",()=>{wf.active=!wf.active;markSaved();persist();render();toast(wf.active?"Active flag enabled locally. No live trigger was created.":"Workflow active flag disabled.");});
  document.querySelector("#run-workflow")?.addEventListener("click",runCurrentWorkflow);
+ document.querySelector("#sync-current")?.addEventListener("click",async()=>{try{await syncCurrentWorkflow();toast("Workflow saved to the server.");}catch(error){toast(error.message);}});
+ document.querySelector("#queue-server-run")?.addEventListener("click",async()=>{try{await queueServerExecution();}catch(error){toast(error.message);}});
  document.querySelectorAll("[data-add-node]").forEach(b=>b.addEventListener("click",()=>addNode(b.dataset.addNode)));
  document.querySelectorAll("[data-node-settings]").forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();state.selectedNodeId=b.dataset.nodeSettings;render();}));
  document.querySelectorAll("[data-node]").forEach(el=>el.addEventListener("click",()=>{if(state.connectFrom){toast("Connect using the small input handle on the target node.");return;}state.selectedNodeId=el.dataset.node;render();}));
