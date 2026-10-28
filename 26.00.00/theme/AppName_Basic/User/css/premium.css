@@ -390,3 +390,8 @@ button:disabled{opacity:.58;cursor:not-allowed;transform:none!important}
   #app .run-input-hint{float:none;display:block;margin:2px 0 0}
   #app .run-input-footer{align-items:flex-start;flex-direction:column;gap:7px}
 }
+
+/* Keyboard accessibility for selectable workflow nodes */
+#app .flow-node:focus-visible{outline:2px solid rgba(169,154,255,.95);outline-offset:5px}
+#app .flow-node .port:focus-visible{outline:2px solid #e7e1ff;outline-offset:3px}
+#app .flow-node .input-port{appearance:none;-webkit-appearance:none;flex:0 0 11px;margin:0;background:#111827}
