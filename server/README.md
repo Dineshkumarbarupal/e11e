@@ -6,7 +6,7 @@ This package is a development foundation and is not a production-hardened public
 
 ## Local setup with Docker Compose
 1. Copy `.env.example` to `.env` in this directory.
-2. Replace `JWT_SECRET` with at least 32 random characters and `CREDENTIAL_ENCRYPTION_KEY_HEX` with exactly 64 hex characters (32 random bytes).
+2. Replace `JWT_SECRET` with at least 32 random characters and `CREDENTIAL_ENCRYPTION_KEY_HEX` with exactly 64 hex characters (32 random bytes). Leave `HTTP_ALLOWED_HOSTS` blank unless outbound HTTP is needed; then list only exact HTTPS hostnames, comma-separated.
 3. From repository root run `docker compose up --build`.
 
 The Compose stack starts PostgreSQL, Redis, the API (port 8787 bound to localhost), a separate background worker and a UTC cron scheduler. The API startup applies the database migration. This is for local development only; sample Compose database password must be replaced for any shared environment.
