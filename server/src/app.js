@@ -192,6 +192,86 @@ export async function buildApp(overrides = {}) {
     return { workflow: workflowDTO(result.rows[0]) };
   });
 
+  app.get("/api/workspaces/:workspaceId/workflows/:workflowId/versions", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const member = await requireMember(request, reply);
+    if (!member) return;
+    const workflowId = uuidSchema.safeParse(request.params.workflowId);
+    if (!workflowId.success) return reply.code(400).send({ error: "Invalid workflow id." });
+    const result = await db.query(
+      "SELECT version,name,active,created_by,created_at FROM workflow_versions WHERE workspace_id=$1 AND workflow_id=$2 ORDER BY version DESC LIMIT 50",
+      [member.id, workflowId.data]
+    );
+    if (!result.rows.length) {
+      const existing = await db.query("SELECT id FROM workflows WHERE workspace_id=$1 AND id=$2", [member.id, workflowId.data]);
+      if (!existing.rows[0]) return reply.code(404).send({ error: "Workflow not found." });
+    }
+    return {
+      versions: result.rows.map(row => ({
+        version: row.version,
+        name: row.name,
+        active: row.active,
+        createdBy: row.created_by,
+        createdAt: row.created_at
+      }))
+    };
+  });
+
+  app.get("/api/workspaces/:workspaceId/workflows/:workflowId/versions/:version", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const member = await requireMember(request, reply);
+    if (!member) return;
+    const workflowId = uuidSchema.safeParse(request.params.workflowId);
+    const version = z.coerce.number().int().min(1).max(2147483647).safeParse(request.params.version);
+    if (!workflowId.success) return reply.code(400).send({ error: "Invalid workflow id." });
+    if (!version.success) return reply.code(400).send({ error: "Invalid workflow version." });
+    const result = await db.query(
+      "SELECT version,name,active,definition,created_by,created_at FROM workflow_versions WHERE workspace_id=$1 AND workflow_id=$2 AND version=$3",
+      [member.id, workflowId.data, version.data]
+    );
+    const row = result.rows[0];
+    if (!row) return reply.code(404).send({ error: "Workflow version not found." });
+    return {
+      version: {
+        version: row.version,
+        name: row.name,
+        active: row.active,
+        definition: typeof row.definition === "string" ? JSON.parse(row.definition) : row.definition,
+        createdBy: row.created_by,
+        createdAt: row.created_at
+      }
+    };
+  });
+
+  app.post("/api/workspaces/:workspaceId/workflows/:workflowId/versions/:version/restore", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const member = await requireMember(request, reply, true);
+    if (!member) return;
+    const workflowId = uuidSchema.safeParse(request.params.workflowId);
+    const version = z.coerce.number().int().min(1).max(2147483647).safeParse(request.params.version);
+    if (!workflowId.success) return reply.code(400).send({ error: "Invalid workflow id." });
+    if (!version.success) return reply.code(400).send({ error: "Invalid workflow version." });
+    const snapshot = await db.query(
+      "SELECT definition FROM workflow_versions WHERE workspace_id=$1 AND workflow_id=$2 AND version=$3",
+      [member.id, workflowId.data, version.data]
+    );
+    if (!snapshot.rows[0]) return reply.code(404).send({ error: "Workflow version not found." });
+    const parsed = workflowSchema.safeParse(sanitizeWorkflowInput(snapshot.rows[0].definition));
+    if (!parsed.success) return validationReply(reply, parsed.error.issues);
+    const definition = { ...parsed.data, id: workflowId.data };
+    const updated = await db.query(
+      "UPDATE workflows SET name=$3,active=$4,definition=$5::jsonb,version=version+1,updated_by=$6,updated_at=now() WHERE workspace_id=$1 AND id=$2 RETURNING *",
+      [member.id, workflowId.data, definition.name, definition.active, JSON.stringify(definition), request.user.sub]
+    );
+    if (!updated.rows[0]) return reply.code(404).send({ error: "Workflow not found." });
+    await audit(db, {
+      workspaceId: member.id,
+      userId: request.user.sub,
+      action: "workflow.restore",
+      resourceType: "workflow",
+      resourceId: workflowId.data,
+      metadata: { restoredFromVersion: version.data, version: updated.rows[0].version }
+    });
+    return { workflow: workflowDTO(updated.rows[0]), restoredFromVersion: version.data };
+  });
+
   app.put("/api/workspaces/:workspaceId/workflows/:workflowId", { preHandler: [app.authenticate] }, async (request, reply) => {
     const member = await requireMember(request, reply, true);
     if (!member) return;
