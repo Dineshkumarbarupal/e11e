@@ -222,13 +222,14 @@ test("signature-required webhook accepts a valid HMAC and timestamp", async () =
   const app = await buildApp({ pool, queue });
   try {
     const body = { event: "created", item: { id: 123, name: "Ada" } };
+    const eventId = "evt_signed_123";
     const timestamp = String(Math.floor(Date.now() / 1000));
-    const signature = createWebhookSignature(signatureSecret, timestamp, body);
+    const signature = createWebhookSignature(signatureSecret, timestamp, body, eventId);
     const response = await injectWebhook(app, {
       headers: {
         "x-e11e-webhook-timestamp": timestamp,
         "x-e11e-webhook-signature": signature,
-        "x-e11e-event-id": "evt_signed_123"
+        "x-e11e-event-id": eventId
       },
       body
     });
@@ -249,21 +250,47 @@ test("signature-required webhook rejects missing, stale and tampered signatures 
     const body = { event: "created", value: 7 };
     const now = Date.now();
     const timestamp = String(Math.floor(now / 1000));
-    const signature = createWebhookSignature(signatureSecret, timestamp, body);
-    const missing = await injectWebhook(app, { body });
-    const staleTimestamp = String(Math.floor(now / 1000) - 301);
-    const staleSignature = createWebhookSignature(signatureSecret, staleTimestamp, body);
-    const stale = await injectWebhook(app, {
-      headers: { "x-e11e-webhook-timestamp": staleTimestamp, "x-e11e-webhook-signature": staleSignature },
+    const eventId = "evt_signed_missing";
+    const signature = createWebhookSignature(signatureSecret, timestamp, body, eventId);
+    const missing = await injectWebhook(app, {
+      headers: { "x-e11e-event-id": eventId },
       body
     });
+    const noEventId = await injectWebhook(app, { body });
+    const staleTimestamp = String(Math.floor(now / 1000) - 301);
+    const staleEventId = "evt_signed_stale";
+    const staleSignature = createWebhookSignature(signatureSecret, staleTimestamp, body, staleEventId);
+    const stale = await injectWebhook(app, {
+      headers: {
+        "x-e11e-event-id": staleEventId,
+        "x-e11e-webhook-timestamp": staleTimestamp,
+        "x-e11e-webhook-signature": staleSignature
+      },
+      body
+    });
+    const tamperedEventId = "evt_signed_tampered";
+    const tamperedSignature = createWebhookSignature(signatureSecret, timestamp, body, tamperedEventId);
     const tampered = await injectWebhook(app, {
-      headers: { "x-e11e-webhook-timestamp": timestamp, "x-e11e-webhook-signature": signature },
+      headers: {
+        "x-e11e-event-id": tamperedEventId,
+        "x-e11e-webhook-timestamp": timestamp,
+        "x-e11e-webhook-signature": tamperedSignature
+      },
       body: { event: "changed", value: 7 }
     });
+    const signatureReusedForOtherId = await injectWebhook(app, {
+      headers: {
+        "x-e11e-event-id": "evt_different_id",
+        "x-e11e-webhook-timestamp": timestamp,
+        "x-e11e-webhook-signature": signature
+      },
+      body
+    });
     assert.equal(missing.statusCode, 401);
+    assert.equal(noEventId.statusCode, 400);
     assert.equal(stale.statusCode, 401);
     assert.equal(tampered.statusCode, 401);
+    assert.equal(signatureReusedForOtherId.statusCode, 401);
     assert.equal(queue.addCalls.length, 0);
     assert.equal(pool.executions.size, 0);
   } finally {
