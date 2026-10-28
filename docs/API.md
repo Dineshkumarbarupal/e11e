@@ -53,9 +53,10 @@ Add a Webhook Trigger node to a workflow, sign in to the frontend, and use the n
 - The workflow must be saved and active on the server. If it was edited in the browser, sync it after toggling the Active flag.
 - Token rotation invalidates the previous token. The server redacts webhook tokens from request logs.
 - The route has the API body-size and rate limits; production should add provider-specific signature verification, per-webhook quotas, secret rotation policy and end-to-end abuse tests.
+- Browser callers must use an origin configured in `CORS_ORIGINS`; the API CORS allow-list includes `x-e11e-webhook-token` for the webhook preflight.
 
 ## Execution limitations
-The queue worker currently supports Manual Trigger, Edit Fields, IF, Merge, Wait and Log/Output. It rejects server-side HTTP nodes by design until outbound egress/SSRF protection and credential-reference support are implemented. Loop semantics, retries at the node level and human approval are not implemented. Queue retries are limited to the worker job policy; they are not a substitute for idempotent workflow design.
+The queue worker currently supports Manual Trigger, Webhook Trigger, Edit Fields, IF, Merge, Wait and Log/Output. It rejects server-side HTTP nodes by design until outbound egress/SSRF protection and credential-reference support are implemented. Loop semantics, retries at the node level and human approval are not implemented. Queue retries are limited to the worker job policy; they are not a substitute for idempotent workflow design.
 
 ## Production hardening still required
 Password reset, MFA/SSO, account verification, session revocation, member invite/role administration, tenant security testing, credential rotation, backup/restore validation, retention/deletion workflows, audit coverage tests, egress controls, observability, rate-limit tuning and API/client integration remain before production use.
