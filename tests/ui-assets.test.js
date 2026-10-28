@@ -149,3 +149,14 @@ test("workflow history compares saved definitions and escapes changed values", a
   assert.match(app, /esc\(displayValue\(change\.beforeValue, change\.beforeExists\)\)/);
   assert.match(diff, /export function diffWorkflowDefinitions/);
 });
+
+test("credential rotation uses an accessible modal rather than a browser prompt", async () => {
+  const app = await readRepoFile(UI_ROOT + "js/app.js");
+  assert.match(app, /id="credential-rotation-modal"/);
+  assert.match(app, /id="credential-rotation-secret"/);
+  assert.match(app, /data-close-credential-rotation/);
+  assert.match(app, /method: "PUT"/);
+  assert.match(app, /state\.credentialRotateTarget/);
+  assert.doesNotMatch(app, /prompt\("Enter the replacement secret/);
+});
+
