@@ -54,3 +54,12 @@ test("workflow schema rejects an invalid schedule cron expression", () => {
   assert.equal(result.success, false);
   assert.ok(result.error.issues.some(issue => issue.path.includes("cron")));
 });
+
+
+test("workflow schema rejects connections into trigger nodes", () => {
+  const flow = validFlow();
+  flow.edges.push({ id: "into-trigger", source: "b", target: "a" });
+  const result = workflowSchema.safeParse(flow);
+  assert.equal(result.success, false);
+  assert.ok(result.error.issues.some(issue => issue.message.includes("Trigger nodes cannot have incoming connections")));
+});
