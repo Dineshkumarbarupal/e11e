@@ -140,3 +140,12 @@ test("workflow version history modal can inspect and restore safe snapshots", as
   assert.match(app, /esc\(JSON\.stringify\(snapshot\.definition, null, 2\)\)/);
   assert.match(app, /as new version/);
 });
+
+test("workflow history compares saved definitions and escapes changed values", async () => {
+  const app = await readRepoFile(UI_ROOT + "js/app.js");
+  const diff = await readRepoFile(UI_ROOT + "js/workflow-version-diff.js");
+  assert.match(app, /data-compare-workflow-version/);
+  assert.match(app, /diffWorkflowDefinitions\\(older\\.definition, latest\\.definition\\)/);
+  assert.match(app, /esc\\(displayValue\\(change\\.beforeValue, change\\.beforeExists\\)\\)/);
+  assert.match(diff, /export function diffWorkflowDefinitions/);
+});
