@@ -160,3 +160,13 @@ test("credential rotation uses an accessible modal rather than a browser prompt"
   assert.doesNotMatch(app, /prompt\("Enter the replacement secret/);
 });
 
+
+
+test("HTTP node exposes bounded retry controls and explains retry side effects", async () => {
+  const app = await readRepoFile(UI_ROOT + "js/app.js");
+  assert.match(app, /Retry attempts \(0–3\)/);
+  assert.match(app, /data-config-number="retryCount"/);
+  assert.match(app, /data-config-number="retryDelayMs"/);
+  assert.match(app, /Retries are off by default/);
+  assert.match(app, /POST\/PUT may repeat remote side effects/);
+});
