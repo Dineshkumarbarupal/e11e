@@ -255,7 +255,9 @@ export async function buildApp(overrides = {}) {
     });
   });
 
-  app.post("/api/webhooks/:workflowId/:nodeId", async (request, reply) => {
+  app.post("/api/webhooks/:workflowId/:nodeId", {
+    config: { rateLimit: { max: config.WEBHOOK_RATE_LIMIT_MAX, timeWindow: "1 minute", keyGenerator: request => `${request.params.workflowId}:${request.params.nodeId}:${request.ip}` } }
+  }, async (request, reply) => {
     const workflowId = uuidSchema.safeParse(request.params.workflowId);
     const nodeId = String(request.params.nodeId || "");
     if (!workflowId.success || !/^[a-zA-Z0-9_-]{1,128}$/.test(nodeId)) return reply.code(404).send({ error: "Webhook endpoint not found." });
