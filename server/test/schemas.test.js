@@ -39,3 +39,18 @@ test("credential secret payload must be an object", () => {
   assert.equal(credentialSchema.safeParse({ name: "API", service: "example", secret: "plaintext" }).success, false);
   assert.equal(credentialSchema.safeParse({ name: "API", service: "example", secret: { key: "placeholder" } }).success, true);
 });
+
+
+test("workflow schema accepts a valid schedule node", () => {
+  const flow = validFlow();
+  flow.nodes.push({ id: "schedule", type: "schedule", name: "Schedule", x: 0, y: 180, config: { cron: "0 9 * * 1-5" } });
+  assert.equal(workflowSchema.safeParse(flow).success, true);
+});
+
+test("workflow schema rejects an invalid schedule cron expression", () => {
+  const flow = validFlow();
+  flow.nodes.push({ id: "schedule", type: "schedule", name: "Schedule", x: 0, y: 180, config: { cron: "99 * * * *" } });
+  const result = workflowSchema.safeParse(flow);
+  assert.equal(result.success, false);
+  assert.ok(result.error.issues.some(issue => issue.path.includes("cron")));
+});
