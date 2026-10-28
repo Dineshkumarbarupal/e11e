@@ -125,6 +125,7 @@ test("server HTTP execution resolves encrypted workspace credentials outside inl
     }
   });
   assert.equal(run.status, "success");
+  assert.equal(run.output.body.accepted, true);
   assert.equal(credentialLookups, 1);
   assert.equal(capturedRequest.request.url, "https://api.example.test/users/42");
   assert.equal(capturedRequest.request.method, "POST");
