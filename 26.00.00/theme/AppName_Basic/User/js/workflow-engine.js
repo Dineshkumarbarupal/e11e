@@ -20,10 +20,33 @@ export function validateWorkflow(workflow) {
     if (!NODE_TYPES[node.type]) errors.push(`Node ${node.id || "(missing id)"} uses an unsupported type.`);
     if (!Number.isFinite(node.x) || !Number.isFinite(node.y)) errors.push(`Node ${node.id} has invalid canvas coordinates.`);
   }
+  const nodesById = new Map((workflow.nodes || []).map(node => [node.id, node]));
+  const adjacency = new Map([...ids].map(nodeId => [nodeId, []]));
   for (const edge of workflow.edges || []) {
     if (!ids.has(edge.source) || !ids.has(edge.target)) errors.push(`Connection ${edge.id || ""} refers to a missing node.`);
     if (edge.source === edge.target) errors.push("A node cannot connect to itself.");
+    if (edge.sourceHandle && nodesById.get(edge.source)?.type === "if" && !["true", "false"].includes(edge.sourceHandle)) errors.push(`Connection ${edge.id || ""} uses an invalid IF branch.`);
+    if (edge.sourceHandle && nodesById.has(edge.source) && nodesById.get(edge.source)?.type !== "if") errors.push(`Connection ${edge.id || ""} has a branch handle on a non-IF node.`);
+    if (adjacency.has(edge.source) && ids.has(edge.target)) adjacency.get(edge.source).push(edge.target);
   }
+  const visiting = new Set();
+  const visited = new Set();
+  function visit(nodeId) {
+    if (visiting.has(nodeId)) return true;
+    if (visited.has(nodeId)) return false;
+    visiting.add(nodeId);
+    for (const next of adjacency.get(nodeId) || []) if (visit(next)) return true;
+    visiting.delete(nodeId);
+    visited.add(nodeId);
+    return false;
+  }
+  for (const nodeId of ids) {
+    if (visit(nodeId)) {
+      errors.push("Cycles are not supported by the local executor yet. Remove the cycle before testing.");
+      break;
+    }
+  }
+  if ((workflow.nodes || []).length && !(workflow.nodes || []).some(node => node.type === "manual")) errors.push("Add a Manual Trigger node to test this workflow.");
   return [...new Set(errors)];
 }
 
@@ -99,7 +122,7 @@ export async function executeWorkflow(workflow, options = {}) {
             let body;
             try { body = text ? JSON.parse(text) : null; } catch { body = text; }
             value = { status: response.status, ok: response.ok, headers: Object.fromEntries(response.headers.entries()), body };
-            if (!response.ok) message = `HTTP ${response.status}`;
+            if (!response.ok) throw new Error(`HTTP ${response.status}: request returned a non-success status.`);
           } finally { clearTimeout(timer); }
           break;
         }
