@@ -90,5 +90,7 @@ test("webhook signature option and one-time signing-secret controls are visible"
   assert.match(app, /signatureSecret/);
   assert.match(app, /copy-webhook-signature-secret/);
   assert.match(app, /x-e11e-webhook-timestamp/);
+  assert.match(app, /x-e11e-event-id/);
+  assert.match(app, /event ID \+ "\." \+ canonical JSON body/);
   assert.match(app, /x-e11e-webhook-signature/);
 });
