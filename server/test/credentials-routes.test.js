@@ -211,3 +211,35 @@ test("credential routes require authentication", async () => {
     assert.equal((await request(app, null, "POST", "", { name: "API", service: "example", secret: { token: "x" } })).statusCode, 401);
   });
 });
+
+
+test("deleting a credential removes only the workspace record and writes an audit event", async () => {
+  await withApp({
+    initialCredentials: [{
+      id: credentialId, workspace_id: workspaceId, name: "Temporary", service: "example",
+      encrypted_payload: { version: 1, iv: "iv", tag: "tag", ciphertext: "ciphertext" },
+      created_at: fixedTime, updated_at: fixedTime
+    }]
+  }, async ({ app, pool, token }) => {
+    const response = await request(app, token, "DELETE", "/" + credentialId);
+    assert.equal(response.statusCode, 204);
+    assert.equal(pool.credentials.has(credentialId), false);
+    assert.ok(pool.audits.some(item => item.params.includes("credential.delete")));
+  });
+});
+
+test("viewer members cannot delete workspace credentials", async () => {
+  await withApp({
+    role: "viewer",
+    initialCredentials: [{
+      id: credentialId, workspace_id: workspaceId, name: "API", service: "example",
+      encrypted_payload: { version: 1, iv: "iv", tag: "tag", ciphertext: "unchanged" },
+      created_at: fixedTime, updated_at: fixedTime
+    }]
+  }, async ({ app, pool, token }) => {
+    const response = await request(app, token, "DELETE", "/" + credentialId);
+    assert.equal(response.statusCode, 403);
+    assert.equal(pool.credentials.has(credentialId), true);
+    assert.equal(pool.audits.length, 0);
+  });
+});
