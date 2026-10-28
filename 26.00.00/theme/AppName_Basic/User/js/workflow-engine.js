@@ -53,6 +53,10 @@ export function validateWorkflow(workflow) {
     }
   }
   for (const node of workflow.nodes || []) {
+    if (node.type === "http") {
+      if (node.config?.retryCount !== undefined && (!Number.isInteger(Number(node.config.retryCount)) || Number(node.config.retryCount) < 0 || Number(node.config.retryCount) > 3)) errors.push("HTTP node " + (node.name || node.id) + " retryCount must be an integer from 0 to 3.");
+      if (node.config?.retryDelayMs !== undefined && (!Number.isInteger(Number(node.config.retryDelayMs)) || Number(node.config.retryDelayMs) < 50 || Number(node.config.retryDelayMs) > 5000)) errors.push("HTTP node " + (node.name || node.id) + " retryDelayMs must be an integer from 50 to 5000.");
+    }
     if (node.type === "loop") {
       if (node.config?.listField !== undefined && (typeof node.config.listField !== "string" || !node.config.listField.trim() || node.config.listField.length > 300)) errors.push("Loop node " + (node.name || node.id) + " needs a valid array field path.");
       if (node.config?.maxItems !== undefined && (!Number.isInteger(Number(node.config.maxItems)) || Number(node.config.maxItems) < 1 || Number(node.config.maxItems) > 100)) errors.push("Loop node " + (node.name || node.id) + " maxItems must be an integer from 1 to 100.");
@@ -125,21 +129,42 @@ export async function executeWorkflow(workflow, options = {}) {
           const url = interpolate(config.url || "", job.input);
           if (!/^https?:\/\//i.test(url)) throw new Error("HTTP Request needs a valid http:// or https:// URL.");
           if (typeof fetch !== "function") throw new Error("Fetch is not available in this runtime.");
-          const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), Math.min(Math.max(Number(config.timeoutMs) || 10000, 1000), 30000));
-          try {
-            const response = await fetch(url, {
-              method: String(config.method || "GET").toUpperCase(),
-              headers: config.headers && typeof config.headers === "object" ? config.headers : {},
-              body: ["GET", "HEAD"].includes(String(config.method || "GET").toUpperCase()) ? undefined : (config.body ? interpolate(config.body, job.input) : undefined),
-              signal: controller.signal
-            });
-            const text = await response.text();
-            let body;
-            try { body = text ? JSON.parse(text) : null; } catch { body = text; }
-            value = { status: response.status, ok: response.ok, headers: Object.fromEntries(response.headers.entries()), body };
-            if (!response.ok) throw new Error(`HTTP ${response.status}: request returned a non-success status.`);
-          } finally { clearTimeout(timer); }
+          const method = String(config.method || "GET").toUpperCase();
+          const retryCount = Math.min(Math.max(Math.trunc(Number(config.retryCount) || 0), 0), 3);
+          const retryDelay = Math.min(Math.max(Math.trunc(Number(config.retryDelayMs) || 250), 50), 5000);
+          let attempts = 0;
+          while (true) {
+            attempts += 1;
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), Math.min(Math.max(Number(config.timeoutMs) || 10000, 1000), 30000));
+            try {
+              const response = await fetch(url, {
+                method,
+                headers: config.headers && typeof config.headers === "object" ? config.headers : {},
+                body: ["GET", "HEAD"].includes(method) ? undefined : (config.body ? interpolate(config.body, job.input) : undefined),
+                signal: controller.signal
+              });
+              const text = await response.text();
+              let body;
+              try { body = text ? JSON.parse(text) : null; } catch { body = text; }
+              const result = { status: response.status, ok: response.ok, headers: Object.fromEntries(response.headers.entries()), body };
+              if (!response.ok) {
+                throw Object.assign(new Error(`HTTP ${response.status}: request returned a non-success status.`), {
+                  retryable: response.status === 429 || response.status >= 500
+                });
+              }
+              value = result;
+              if (attempts > 1) message = "HTTP request completed after " + attempts + " attempts";
+              break;
+            } catch (error) {
+              clearTimeout(timer);
+              const retryable = error?.retryable === true || error?.name === "AbortError" || error instanceof TypeError;
+              if (!retryable || attempts > retryCount) throw error;
+              await new Promise(resolve => setTimeout(resolve, Math.min(retryDelay * (2 ** (attempts - 1)), 10000)));
+            } finally {
+              clearTimeout(timer);
+            }
+          }
           break;
         }
         case "if": {
