@@ -1,6 +1,6 @@
 # Product roadmap and progress meter
 
-**Progress snapshot: approximately 59% of a broad n8n-like MVP scope.** This is a rough engineering estimate, not test coverage, enterprise readiness or feature parity with n8n.
+**Progress snapshot: approximately 60% of a broad n8n-like MVP scope.** This is a rough engineering estimate, not test coverage, enterprise readiness or feature parity with n8n.
 
 ## Implemented in this repository
 - [x] Requested root folders and UI theme structure under `26.00.00/theme/AppName_Basic/User/`
@@ -21,6 +21,7 @@
 - [x] Encrypted credential persistence (AES-256-GCM), credential metadata API, workspace-scoped credential lookup for server HTTP and audit log API
 - [x] Guarded server HTTP execution: explicit exact-host allow-list, HTTPS/443 only, DNS validation and pinned IP, private/reserved IP rejection, no auto-follow redirects, bounded response/request sizes and optional encrypted-vault credential headers
 - [x] Redis/BullMQ queue plus a separate worker process
+- [x] Atomic worker execution claims prevent duplicate jobs from re-running already-running or completed workflows while allowing failed attempts to retry
 - [x] Token-protected webhook endpoints with per-node SHA-256 token hashes, trigger-specific execution and optional event-ID deduplication
 - [x] UTC five-field cron Schedule Trigger, schema validation, singleton scheduler lock, persistent last-fired slots and retries for queued schedule jobs
 - [x] Explicit CORS allow-list includes the webhook token header for configured browser origins
@@ -29,8 +30,8 @@
 - [x] Expanded regression coverage for false IF branches, nested interpolation, rejected non-HTTP URL schemes, shared IF branch targets and incoming edges to trigger nodes
 - [x] Cron parser/matcher and scheduler-core tests for UTC matching, invalid expressions, active workflow selection and deduplication keys
 - [x] GitHub Actions Build verification passed on commit `580d6140aeab6d61926f66fefbb9311344d83082` (run 40659126068, 2026-10-28): dependency install, root/server syntax checks, browser unit tests, server unit/security tests and Vite production build all succeeded
-- [x] Focused harness runs also passed: browser workflow engine 18/18, server executor 13/13, secure HTTP policy 9/9, UI assets 11/11, plus canvas/cron/scheduler-core checks
-- [ ] Re-run hosted CI on any subsequent changes; live Docker/PostgreSQL/Redis and real external HTTPS integration tests remain outstanding
+- [x] Focused harness runs: browser workflow engine 18/18, server executor 13/13, secure HTTP policy 9/9, UI assets 11/11, atomic execution claims 6/6, plus canvas/cron/scheduler-core checks
+- [ ] Re-run hosted CI after the new execution-claim change; live Docker/PostgreSQL/Redis and real external HTTPS integration tests remain outstanding
 - [x] Root `npm test` includes workflow engine, canvas layout, UI asset and cron tests; root `npm run check` checks canvas and cron helper syntax
 - [x] Server tests cover cron matching, schedule-node schema validation, execution starting at a scheduled node, and due-schedule selection
 - [x] Regression test proving an explicit webhook trigger starts the matching node instead of the manual trigger
@@ -55,6 +56,7 @@
 - [ ] Master-key rotation/KMS integration, environment promotion, reusable sub-workflows and collaboration
 - [ ] Frontend conflict resolution/continuous synchronization and complete server execution-detail UI
 - [ ] Tenant isolation review, comprehensive authorization tests, audit completeness and data retention/deletion policy
+- [ ] Worker claim/idempotency integration test against a real PostgreSQL transaction under concurrent job delivery
 - [ ] End-to-end/browser/accessibility/load/security tests and independent threat model review
 - [ ] CI result verification, deployment automation, metrics/traces, alerting, backups and disaster-recovery drills
 
