@@ -43,7 +43,7 @@ AppName/
 ```
 
 ## Run the browser MVP
-Requires Node.js 20+.
+Requires Node.js 24 LTS or newer. Node 24 is the project's supported runtime target.
 ```bash
 npm install
 npm run check
