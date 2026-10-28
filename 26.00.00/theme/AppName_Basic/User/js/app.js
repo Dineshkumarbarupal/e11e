@@ -213,11 +213,33 @@ async function loadCredentials() {
   if (!target) return;
   const items = result.credentials || [];
   target.innerHTML = items.length
-    ? '<div class="credential-list">' + items.map(item => '<div class="credential-item"><div class="credential-symbol">♢</div><div class="credential-info"><b>' + esc(item.name) + '</b><small>' + esc(item.service) + ' · ID ' + esc(item.id) + ' · updated ' + esc(item.updatedAt ? new Date(item.updatedAt).toLocaleString() : "—") + '</small></div><button class="btn-quiet btn-small" data-credential-copy="' + esc(item.id) + '" title="Copy credential ID">Copy ID</button><button class="icon-btn" data-credential-delete="' + esc(item.id) + '" title="Delete credential">×</button></div>').join("") + '</div>'
+    ? '<div class="credential-list">' + items.map(item => '<div class="credential-item"><div class="credential-symbol">♢</div><div class="credential-info"><b>' + esc(item.name) + '</b><small>' + esc(item.service) + ' · ID ' + esc(item.id) + ' · updated ' + esc(item.updatedAt ? new Date(item.updatedAt).toLocaleString() : "—") + '</small></div><button class="btn-quiet btn-small" data-credential-copy="' + esc(item.id) + '" title="Copy credential ID">Copy ID</button><button class="btn-quiet btn-small" data-credential-rotate="' + esc(item.id) + '" title="Replace encrypted secret">Rotate</button><button class="icon-btn" data-credential-delete="' + esc(item.id) + '" title="Delete credential">×</button></div>').join("") + '</div>'
     : '<div class="empty-state">No credentials stored in this workspace.</div>';
   target.querySelectorAll("[data-credential-copy]").forEach(button => button.addEventListener("click", async () => {
     try { await navigator.clipboard.writeText(button.dataset.credentialCopy); toast("Credential ID copied."); }
     catch { toast("Clipboard unavailable; copy the credential ID from the list."); }
+  }));
+  target.querySelectorAll("[data-credential-rotate]").forEach(button => button.addEventListener("click", async () => {
+    const item = items.find(credential => credential.id === button.dataset.credentialRotate);
+    if (!item) return;
+    const raw = prompt("Enter the replacement secret as a JSON object. The existing secret is never displayed.");
+    if (raw === null) return;
+    let secret;
+    try {
+      secret = JSON.parse(raw);
+      if (!secret || typeof secret !== "object" || Array.isArray(secret)) throw new Error("Secret payload must be a JSON object.");
+    } catch (error) {
+      toast("Invalid replacement secret: " + error.message);
+      return;
+    }
+    try {
+      await apiRequest(workspaceApiPath() + "/credentials/" + encodeURIComponent(item.id), {
+        method: "PUT",
+        body: JSON.stringify({ name: item.name, service: item.service, secret })
+      });
+      toast("Credential secret rotated and encrypted.");
+      await loadCredentials();
+    } catch (error) { toast(error.message); }
   }));
   target.querySelectorAll("[data-credential-delete]").forEach(button => button.addEventListener("click", async () => {
     if (!confirm("Delete this encrypted credential? Existing workflows may stop working.")) return;
