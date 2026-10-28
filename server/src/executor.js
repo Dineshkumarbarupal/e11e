@@ -36,6 +36,7 @@ export async function executeWorkflowDefinition(workflow, options = {}) {
       switch (node.type) {
         case "manual":
         case "webhook":
+        case "schedule":
           output = task.input;
           break;
         case "set": {
