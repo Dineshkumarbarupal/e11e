@@ -43,7 +43,7 @@ Include `Authorization: Bearer <token>` on each request:
 - `GET /api/workspaces/:workspaceId/executions/:executionId`
 - `POST /api/workspaces/:workspaceId/executions/:executionId/cancel` — cancel a queued/running execution within the authenticated writable workspace; returns `200` when cancelled, `404` if missing, or `409` if already finished
 - `GET /api/workspaces/:workspaceId/credentials` — metadata only; plaintext is never returned.
-- `POST /api/workspaces/:workspaceId/credentials` JSON: `{"name":"Demo token","service":"sample","secret":{"token":"placeholder"}}`.
+- `POST /api/workspaces/:workspaceId/credentials` JSON: `{"name":"Demo token","service":"sample","secret":{"token":"placeholder"}}`. The API encrypts payloads with AES-256-GCM before persistence and returns metadata only.
 - `PUT /api/workspaces/:workspaceId/credentials/:credentialId` JSON uses the same `name`, `service` and replacement `secret` fields; it re-encrypts the new payload, updates `updated_at`, writes an audit event and returns metadata only. The old secret is never read back or returned.
 - `DELETE /api/workspaces/:workspaceId/credentials/:credentialId`
 - `GET /api/workspaces/:workspaceId/audit-logs` (owner/admin only).
