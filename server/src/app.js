@@ -4,7 +4,7 @@ import helmet from "@fastify/helmet";
 import jwt from "@fastify/jwt";
 import rateLimit from "@fastify/rate-limit";
 import bcrypt from "bcryptjs";
-import { randomUUID } from "node:crypto";
+import { randomUUID, randomBytes, createHash } from "node:crypto";
 import { z } from "zod";
 import { config } from "./config.js";
 import { pool } from "./db.js";
@@ -36,7 +36,7 @@ export async function buildApp(overrides = {}) {
   const db = overrides.pool || pool;
   const queue = overrides.queue;
   const app = Fastify({
-    logger: config.NODE_ENV !== "test",
+    logger: config.NODE_ENV === "test" ? false : { redact: { paths: ["req.headers.authorization", "req.headers.x-e11e-webhook-token"], censor: "[REDACTED]" } },
     bodyLimit: 1024 * 1024,
     trustProxy: false
   });
@@ -216,6 +216,61 @@ export async function buildApp(overrides = {}) {
     if (!deleted.rows[0]) return reply.code(404).send({ error: "Workflow not found." });
     await audit(db, { workspaceId: member.id, userId: request.user.sub, action: "workflow.delete", resourceType: "workflow", resourceId: id.data });
     return reply.code(204).send();
+  });
+
+  app.post("/api/workspaces/:workspaceId/workflows/:workflowId/nodes/:nodeId/webhook-token", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const member = await requireMember(request, reply, true);
+    if (!member) return;
+    const workflowId = uuidSchema.safeParse(request.params.workflowId);
+    const nodeId = String(request.params.nodeId || "");
+    if (!workflowId.success) return reply.code(400).send({ error: "Invalid workflow id." });
+    if (!/^[a-zA-Z0-9_-]{1,128}$/.test(nodeId)) return reply.code(400).send({ error: "Invalid node id." });
+    const result = await db.query("SELECT definition FROM workflows WHERE workspace_id=$1 AND id=$2", [member.id, workflowId.data]);
+    const row = result.rows[0];
+    if (!row) return reply.code(404).send({ error: "Workflow not found." });
+    const definition = typeof row.definition === "string" ? JSON.parse(row.definition) : row.definition;
+    const trigger = (definition.nodes || []).find(node => node.id === nodeId && node.type === "webhook");
+    if (!trigger) return reply.code(422).send({ error: "Select a Webhook Trigger node in this workflow first." });
+    const token = randomBytes(32).toString("base64url");
+    const tokenHash = createHash("sha256").update(token).digest("hex");
+    await db.query(
+      "INSERT INTO webhook_tokens(id,workspace_id,workflow_id,node_id,token_hash,created_by) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(workspace_id,workflow_id,node_id) DO UPDATE SET token_hash=EXCLUDED.token_hash,created_by=EXCLUDED.created_by,rotated_at=now()",
+      [randomUUID(), member.id, workflowId.data, nodeId, tokenHash, request.user.sub]
+    );
+    await audit(db, { workspaceId: member.id, userId: request.user.sub, action: "webhook_token.rotate", resourceType: "webhook", resourceId: workflowId.data, metadata: { nodeId } });
+    return reply.code(201).send({ webhook: { path: "/api/webhooks/" + workflowId.data + "/" + encodeURIComponent(nodeId), token, headerName: "x-e11e-webhook-token", nodeId } });
+  });
+
+  app.post("/api/webhooks/:workflowId/:nodeId", async (request, reply) => {
+    const workflowId = uuidSchema.safeParse(request.params.workflowId);
+    const nodeId = String(request.params.nodeId || "");
+    if (!workflowId.success || !/^[a-zA-Z0-9_-]{1,128}$/.test(nodeId)) return reply.code(404).send({ error: "Webhook endpoint not found." });
+    const token = request.headers["x-e11e-webhook-token"];
+    if (typeof token !== "string" || token.length < 32 || token.length > 256) return reply.code(401).send({ error: "A valid webhook token is required." });
+    const tokenHash = createHash("sha256").update(token).digest("hex");
+    const result = await db.query(
+      "SELECT t.workspace_id,t.workflow_id,t.node_id,w.active,w.definition FROM webhook_tokens t JOIN workflows w ON w.workspace_id=t.workspace_id AND w.id=t.workflow_id WHERE t.workflow_id=$1 AND t.node_id=$2 AND t.token_hash=$3",
+      [workflowId.data, nodeId, tokenHash]
+    );
+    const row = result.rows[0];
+    if (!row) return reply.code(401).send({ error: "Invalid webhook token." });
+    if (!row.active) return reply.code(409).send({ error: "This workflow is inactive." });
+    const definition = typeof row.definition === "string" ? JSON.parse(row.definition) : row.definition;
+    const trigger = (definition.nodes || []).find(node => node.id === nodeId && node.type === "webhook");
+    if (!trigger) return reply.code(404).send({ error: "Webhook endpoint not found." });
+    if (!queue) return reply.code(503).send({ error: "Execution queue is unavailable." });
+    const executionId = randomUUID();
+    await db.query(
+      "INSERT INTO executions(id,workspace_id,workflow_id,status,input,trigger_type,trigger_node_id) VALUES($1,$2,$3,'queued',$4::jsonb,'webhook',$5)",
+      [executionId, row.workspace_id, row.workflow_id, JSON.stringify(request.body ?? {}), nodeId]
+    );
+    try {
+      await queue.add("execute", { executionId }, { jobId: executionId, attempts: 2, backoff: { type: "exponential", delay: 1500 }, removeOnComplete: 200, removeOnFail: 1000 });
+    } catch {
+      await db.query("UPDATE executions SET status='error',error='Unable to enqueue webhook execution',finished_at=now() WHERE id=$1", [executionId]);
+      return reply.code(503).send({ error: "Unable to enqueue webhook execution." });
+    }
+    return reply.code(202).send({ execution: { id: executionId, status: "queued" } });
   });
 
   app.post("/api/workspaces/:workspaceId/workflows/:workflowId/executions", { preHandler: [app.authenticate] }, async (request, reply) => {
