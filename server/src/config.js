@@ -11,7 +11,8 @@ const schema = z.object({
   CREDENTIAL_ENCRYPTION_KEY_HEX: z.string().regex(/^[a-fA-F0-9]{64}$/, "Credential encryption key must be exactly 64 hex characters."),
   CORS_ORIGINS: z.string().default("http://localhost:5173"),
   HTTP_ALLOWED_HOSTS: z.string().default(""),
-  RATE_LIMIT_MAX: z.coerce.number().int().min(10).max(10000).default(100)
+  RATE_LIMIT_MAX: z.coerce.number().int().min(10).max(10000).default(100),
+  WEBHOOK_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(10000).default(60)
 });
 
 const parsed = schema.safeParse(process.env);
