@@ -25,8 +25,9 @@
 - [x] Explicit CORS allow-list includes the webhook token header for configured browser origins
 - [x] Tracked SQL migrations, local Docker Compose services and server worker tests
 - [x] Browser engine unit tests and server schema tests
-- [x] Expanded regression coverage for false IF branches, nested interpolation, rejected non-HTTP URL schemes, and shared IF branch targets
+- [x] Expanded regression coverage for false IF branches, nested interpolation, rejected non-HTTP URL schemes, shared IF branch targets and incoming edges to trigger nodes
 - [x] Cron parser/matcher and scheduler-core tests for UTC matching, invalid expressions, active workflow selection and deduplication keys
+- [x] UI asset regression suite and 37 custom-evaluated workflow/cron/canvas/scheduler-core/server-executor tests passed in this session; native package build and hosted CI status are not yet verified
 - [x] Root `npm test` includes workflow engine, canvas layout, UI asset and cron tests; root `npm run check` checks canvas and cron helper syntax
 - [x] Server tests cover cron matching, schedule-node schema validation, execution starting at a scheduled node, and due-schedule selection
 - [x] Regression test proving an explicit webhook trigger starts the matching node instead of the manual trigger
