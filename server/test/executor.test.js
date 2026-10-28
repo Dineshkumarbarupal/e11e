@@ -281,3 +281,21 @@ test("server executor rejects a non-array loop source", async () => {
   };
   await assert.rejects(() => executeWorkflowDefinition(flow, { input: { items: {} } }), /expected an array/);
 });
+
+
+test("server executor checks for cancellation before processing the first node", async () => {
+  const flow = baseFlow();
+  await assert.rejects(
+    () => executeWorkflowDefinition(flow, { shouldCancel: async () => true }),
+    error => error.cancelled === true && error.nodeRuns.length === 0
+  );
+});
+
+test("server executor stops between nodes when cancellation is requested", async () => {
+  let checks = 0;
+  const flow = baseFlow();
+  await assert.rejects(
+    () => executeWorkflowDefinition(flow, { shouldCancel: async () => { checks += 1; return checks > 1; } }),
+    error => error.cancelled === true && error.nodeRuns.length === 1 && error.nodeRuns[0].nodeId === "start"
+  );
+});
