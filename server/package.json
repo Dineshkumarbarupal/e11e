@@ -3,13 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
     "worker": "node src/worker.js",
     "migrate": "node src/migrate.js",
-    "check": "node --check src/index.js && node --check src/app.js && node --check src/worker.js && node --check src/executor.js",
+    "check": "for file in src/*.js test/*.test.js; do node --check \"$file\" || exit 1; done",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
