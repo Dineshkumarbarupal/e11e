@@ -20,6 +20,7 @@ function validationReply(reply, issues) {
   return reply.code(422).send({ error: "Validation failed", details: issues.map(issue => ({ path: issue.path.join("."), message: issue.message })) });
 }
 function safeUser(row) { return { id: row.id, email: row.email, name: row.name, createdAt: row.created_at }; }
+function sanitizeWorkflowInput(body) { if (!body || typeof body !== "object") return body; return { id: body.id, name: body.name, active: body.active ?? false, nodes: body.nodes, edges: body.edges }; }
 function workflowDTO(row) {
   const definition = typeof row.definition === "string" ? JSON.parse(row.definition) : row.definition;
   return { ...definition, id: row.id, name: row.name, active: row.active, version: row.version, createdAt: row.created_at, updatedAt: row.updated_at };
@@ -167,7 +168,7 @@ export async function buildApp(overrides = {}) {
   app.post("/api/workspaces/:workspaceId/workflows", { preHandler: [app.authenticate] }, async (request, reply) => {
     const member = await requireMember(request, reply, true);
     if (!member) return;
-    const parsed = workflowSchema.safeParse(request.body);
+    const parsed = workflowSchema.safeParse(sanitizeWorkflowInput(request.body));
     if (!parsed.success) return validationReply(reply, parsed.error.issues);
     const workflowId = randomUUID();
     const definition = { ...parsed.data, id: workflowId };
