@@ -21,7 +21,7 @@ Browser workflows and local run history are stored in `localStorage`. The API JW
 - Workspace member checks, viewer write restrictions, input validation, rate limits and explicit CORS origins
 - AES-256-GCM encryption for credential payloads; API responses expose metadata only
 - Redis/BullMQ queue plus separate worker process
-- Server worker supports Manual Trigger, Edit Fields, IF, Merge, Wait and Log/Output with a bounded step budget
+- Server worker supports Manual Trigger, Webhook Trigger, Edit Fields, IF, Merge, Wait and Log/Output with a bounded step budget
 - Server-side HTTP node execution is deliberately disabled until outbound network security and credential-reference support are implemented
 
 ## Important gaps
