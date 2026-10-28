@@ -21,7 +21,7 @@
 - [x] Encrypted credential persistence (AES-256-GCM), credential metadata API, workspace-scoped credential lookup for server HTTP and audit log API
 - [x] Guarded server HTTP execution: explicit exact-host allow-list, HTTPS/443 only, DNS validation and pinned IP, private/reserved IP rejection, no auto-follow redirects, bounded response/request sizes and optional encrypted-vault credential headers
 - [x] Redis/BullMQ queue plus a separate worker process
-- [x] Token-protected webhook endpoints with per-node SHA-256 token hashes and trigger-specific execution
+- [x] Token-protected webhook endpoints with per-node SHA-256 token hashes, trigger-specific execution and optional event-ID deduplication
 - [x] UTC five-field cron Schedule Trigger, schema validation, singleton scheduler lock, persistent last-fired slots and retries for queued schedule jobs
 - [x] Explicit CORS allow-list includes the webhook token header for configured browser origins
 - [x] Tracked SQL migrations, local Docker Compose services and server worker tests
@@ -36,7 +36,8 @@
 - [x] API/security/architecture/deployment documentation
 
 ## Not implemented yet
-- [ ] Provider-specific webhook signature validation, event deduplication and per-hook quotas
+- [x] Optional webhook event-ID idempotency using hashed event IDs and a partial unique database index
+- [ ] Provider-specific webhook signature validation, per-hook quotas and advanced replay controls
 - [ ] Timezone/DST schedules, missed-run backfill policy, scheduler metrics/alerts and large-scale partitioned scheduling
 - [x] Server HTTP credential-reference binding and encrypted workspace resolution
 - [ ] Independent SSRF/security review, live HTTPS integration tests, egress policy administration, credential rotation/KMS, and production HTTP operations
