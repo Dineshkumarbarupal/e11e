@@ -1,30 +1,31 @@
 # e11e Flow — Workflow Automation Studio
 
-e11e Flow is an original workflow-automation project with a browser-local visual editor MVP and a separately deployable Fastify API/worker foundation. It is inspired by common automation patterns; it does not copy n8n source code or branding.
+e11e Flow is an original workflow-automation project with a browser-based visual editor MVP and a separately deployable Fastify API/worker. It is inspired by common automation patterns and does not copy n8n source code or branding.
 
-> **Status:** early MVP. This repository does not provide full n8n feature parity and is not yet suitable for production automation. Read [Roadmap](docs/ROADMAP.md) and [Security](SECURITY.md).
+> **Status:** functional early MVP, not full n8n parity and not enterprise-ready. See [Roadmap](docs/ROADMAP.md) and [Security](SECURITY.md).
 
-## What works in the browser MVP
-- Premium responsive dark dashboard and node canvas
-- Drag nodes around the canvas; connect nodes; IF nodes have true/false handles
-- Seven local node types: Manual Trigger, Edit Fields, HTTP Request, IF, Merge, Wait and Log/Output
-- Node inspector, node configuration, connection removal, workflow validation
-- Create workflow, local save, import/export JSON
-- Test execution with per-node inputs/outputs, local history and execution JSON export
-- Unit tests for the local workflow engine
+## Browser product features
+- Premium responsive dark dashboard, navigation, workflow list and execution-history screens
+- Visual node canvas: move nodes, connect nodes, zoom, inspect/edit node config, remove connections
+- IF node with separate true/false output handles
+- Seven node types: Manual Trigger, Edit Fields, HTTP Request, IF, Merge, Wait and Log/Output
+- Local workflow validation, browser-local persistence, JSON import/export and node-by-node test output
+- Local test-run history and execution JSON export
+- Optional API sign-in/register, push/pull workflow sync, server-queue execution and server execution-history loading
 
-Browser workflow data lives in localStorage. The browser HTTP node depends on CORS and should be used only for non-sensitive test calls. Do not store secrets in browser workflow fields.
+Browser workflows and local run history are stored in `localStorage`. The API JWT is kept in `sessionStorage` for the current browser tab. Browser HTTP requests depend on browser CORS and are only suitable for non-sensitive testing. Never store secrets in workflow fields.
 
 ## Server foundation
-- Fastify API with JWT-based authentication
-- PostgreSQL schema for users, workspaces, memberships, workflows, executions, encrypted credentials and audit events
-- Workspace membership checks, viewer write restrictions, request validation and rate limits
-- AES-256-GCM encryption at rest for credential payloads
-- Redis/BullMQ background execution queue
-- Worker for safe built-in nodes (Manual, Set, IF, Merge, Wait, Log)
-- The server HTTP node is deliberately disabled until a production-grade outbound network policy and credential-reference flow exists.
+- Fastify REST API with JWT authentication and password hashing
+- PostgreSQL schema for users, workspaces, memberships, workflows/versions, executions, encrypted credentials and audit events
+- Workspace member checks, viewer write restrictions, input validation, rate limits and explicit CORS origins
+- AES-256-GCM encryption for credential payloads; API responses expose metadata only
+- Redis/BullMQ queue plus separate worker process
+- Server worker supports Manual Trigger, Edit Fields, IF, Merge, Wait and Log/Output with a bounded step budget
+- Server-side HTTP node execution is deliberately disabled until outbound network security and credential-reference support are implemented
 
-**The browser UI is not yet connected to the server API.** Users currently see browser-local workflows; the server API is a separately runnable foundation. User invites, SSO, role administration, webhook listeners, cron triggers, broad integration catalog, AI agent nodes, collaboration, retention controls and end-to-end production hardening are not implemented.
+## Important gaps
+The app is **not a complete n8n replacement**. Webhook listeners, schedule/cron triggers, loop node semantics, durable wait/resume, server-side secure HTTP/integration runtime, broad integration catalog, OAuth lifecycle, AI agents/LLM tools/RAG, human approvals, collaboration/invites, SSO/MFA, retention/deletion controls, observability and production hardening are still incomplete. The API foundation has not received independent security review or a full integration/load test. Do not expose it publicly or use production credentials.
 
 ## Requested directory convention
 ```text
@@ -50,17 +51,17 @@ npm test
 npm run build
 npm run dev
 ```
-Open the local Vite URL shown in the terminal.
+Open the Vite URL printed in the terminal.
 
-## Run the API server
-Prerequisites: a reachable PostgreSQL database and Redis instance. Copy `server/.env.example` to `server/.env` and replace every placeholder. Do not commit real environment files.
+## Run the API + worker
+Prerequisites: PostgreSQL and Redis. Copy `server/.env.example` to `server/.env`; replace placeholders and never commit real environment files.
 
-Generate secrets, for example:
+Generate two independent secrets:
 ```bash
 openssl rand -hex 32
 openssl rand -hex 32
 ```
-Use the first output for `JWT_SECRET` (minimum 32 characters) and the second for `CREDENTIAL_ENCRYPTION_KEY_HEX` (exactly 64 hexadecimal characters). Set the database/Redis URLs and allowed CORS origin in `server/.env`.
+Use one output for `JWT_SECRET` (at least 32 characters) and one for `CREDENTIAL_ENCRYPTION_KEY_HEX` (exactly 64 hex characters). Set PostgreSQL/Redis URLs and exact frontend origins in `server/.env`.
 
 Then:
 ```bash
@@ -68,19 +69,18 @@ npm install --prefix server
 npm run server:migrate
 npm run server:dev
 ```
-In a second terminal, start the background worker:
+In another terminal:
 ```bash
 npm run server:worker
 ```
-API health endpoints: `GET /healthz` and `GET /readyz`. See [server API notes](docs/API.md).
+Health checks: `GET /healthz` and `GET /readyz`. See [API notes](docs/API.md).
 
-## Build and tests
-GitHub Actions is configured to run browser JS checks, workflow engine unit tests, server JS checks, server schema tests and the Vite production build on pushes/PRs. Check the Actions tab for live results; no passing status should be inferred from configuration alone.
+## CI and deployment
+GitHub Actions is configured to run browser syntax checks/unit tests, server syntax checks/schema tests and a Vite production build. The Actions tab is the source of truth for the live result; configuration alone does not mean that checks passed.
 
-## Deployment
-- Static demo: Cloudflare Pages, build command `npm run build`, output directory `dist`.
-- Full-stack API: requires Node.js hosting plus PostgreSQL and Redis. A static Pages deployment alone cannot run the server worker. Free-tier limits can change; check provider terms before selecting infrastructure.
-- See [Deployment guide](docs/DEPLOYMENT.md).
+- Free frontend demo: Cloudflare Pages, build command `npm run build`, output directory `dist`.
+- API/worker require Node.js hosting, PostgreSQL and Redis. A static Pages site alone cannot run the worker.
+- See [Deployment guide](docs/DEPLOYMENT.md) and [Security policy](SECURITY.md).
 
 ## License
-A project license has not yet been selected. Decide distribution and commercial terms before choosing one.
+A license has not been selected. Choose distribution and commercial terms before adding one.
