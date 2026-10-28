@@ -7,8 +7,8 @@
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "node --test 26.00.00/theme/AppName_Basic/User/js/workflow-engine.test.js",
-    "check": "node --check 26.00.00/theme/AppName_Basic/User/js/app.js && node --check 26.00.00/theme/AppName_Basic/User/js/workflow-engine.js",
+    "test": "node --test 26.00.00/theme/AppName_Basic/User/js/workflow-engine.test.js tests/canvas-layout.test.js tests/ui-assets.test.js",
+    "check": "node --check 26.00.00/theme/AppName_Basic/User/js/app.js && node --check 26.00.00/theme/AppName_Basic/User/js/workflow-engine.js && node --check 26.00.00/theme/AppName_Basic/User/js/canvas-layout.js",
     "server:dev": "npm --prefix server run dev",
     "server:worker": "npm --prefix server run worker",
     "server:migrate": "npm --prefix server run migrate"
