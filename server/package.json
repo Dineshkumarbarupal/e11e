@@ -12,7 +12,8 @@
     "worker": "node src/worker.js",
     "migrate": "node src/migrate.js",
     "check": "for file in src/*.js test/*.test.js; do node --check \"$file\" || exit 1; done",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "scheduler": "node src/scheduler.js"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.2",
