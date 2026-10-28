@@ -183,6 +183,46 @@ function renderExecutions() {
  ${runs.length?'<div class="table-wrap"><table class="data-table"><thead><tr><th>Run</th><th>Workflow</th><th>Status</th><th>Steps</th><th>Started</th><th></th></tr></thead><tbody>'+runs.map(r=>`<tr><td>${esc(r.id)}</td><td>${esc(r.workflowName||"Workflow")}</td><td><span class="status ${r.status==="success"?"":"paused"}">${esc(r.status)}</span></td><td>${r.nodeRuns?.length||0}</td><td>${esc(new Date(r.startedAt).toLocaleString())}</td><td><button class="btn-quiet btn-small" data-run-detail="${esc(r.id)}">Details</button></td></tr>`).join("")+'</tbody></table></div>':'<div class="empty-state">No executions recorded yet. Go to Workflows, open a workflow and run a test.</div>'}
  <div id="run-details"></div><div id="server-executions"></div></section><div class="notice">HTTP Request nodes use browser fetch; cross-origin endpoints may reject requests due to CORS. This is not a secure server-side execution engine.</div>`;
 }
+
+function renderCredentials() {
+  if (!apiConnection) return '<div class="page-head"><div><div class="eyebrow">Security</div><h1>Credentials vault</h1><p>Store integration credentials encrypted on the API server.</p></div></div><section class="panel page-placeholder"><div><div class="brand-mark" style="margin:auto">e</div><h2>Connect your API first</h2><p>Sign in to enable server-side credential storage. Secrets are not stored in browser localStorage.</p><button class="btn-primary" data-page="Settings">Open server settings</button></div></section>';
+  return '<div class="page-head"><div><div class="eyebrow">Security</div><h1>Credentials vault</h1><p>Credential payloads are encrypted at rest by the server. This screen shows metadata only after saving.</p></div></div><div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>Add credential</h2><p>Use a test value; production rotation and KMS are not yet implemented.</p></div></div><form id="credential-form"><label class="field-label">Credential name<input class="field-input" id="credential-name" required maxlength="120" placeholder="CRM API token"></label><label class="field-label">Service / provider<input class="field-input" id="credential-service" required maxlength="120" placeholder="Example CRM"></label><label class="field-label">Secret payload (JSON)<textarea class="field-input code-input" id="credential-secret" rows="7" required placeholder="{&quot;token&quot;:&quot;replace-me&quot;}"></textarea></label><button class="btn-primary" type="submit">Encrypt and save</button></form><div class="notice"><b>Never share secrets in screenshots or logs.</b> The secret is submitted to your configured API and is not shown again in the list.</div></section><section class="panel"><div class="panel-head"><div><h2>Saved credentials</h2><p>Metadata only · workspace scoped</p></div><button class="btn-quiet" id="reload-credentials">Refresh</button></div><div id="credential-list"><div class="empty-state">Loading credentials…</div></div></section></div>';
+}
+async function loadCredentials() {
+  const result = await apiRequest(workspaceApiPath() + "/credentials");
+  const target = document.querySelector("#credential-list");
+  if (!target) return;
+  const items = result.credentials || [];
+  target.innerHTML = items.length
+    ? '<div class="credential-list">' + items.map(item => '<div class="credential-item"><div class="credential-symbol">♢</div><div class="credential-info"><b>' + esc(item.name) + '</b><small>' + esc(item.service) + ' · updated ' + esc(item.updatedAt ? new Date(item.updatedAt).toLocaleString() : "—") + '</small></div><button class="icon-btn" data-credential-delete="' + esc(item.id) + '" title="Delete credential">×</button></div>').join("") + '</div>'
+    : '<div class="empty-state">No credentials stored in this workspace.</div>';
+  target.querySelectorAll("[data-credential-delete]").forEach(button => button.addEventListener("click", async () => {
+    if (!confirm("Delete this encrypted credential? Existing workflows may stop working.")) return;
+    try { await apiRequest(workspaceApiPath() + "/credentials/" + encodeURIComponent(button.dataset.credentialDelete), { method: "DELETE" }); toast("Credential deleted."); await loadCredentials(); }
+    catch (error) { toast(error.message); }
+  }));
+}
+function bindCredentials() {
+  document.querySelector("#credential-form")?.addEventListener("submit", async event => {
+    event.preventDefault();
+    try {
+      const secret = JSON.parse(document.querySelector("#credential-secret").value);
+      if (!secret || typeof secret !== "object" || Array.isArray(secret)) throw new Error("Secret payload must be a JSON object.");
+      await apiRequest(workspaceApiPath() + "/credentials", { method: "POST", body: JSON.stringify({
+        name: document.querySelector("#credential-name").value.trim(),
+        service: document.querySelector("#credential-service").value.trim(),
+        secret
+      }) });
+      document.querySelector("#credential-secret").value = "";
+      document.querySelector("#credential-name").value = "";
+      document.querySelector("#credential-service").value = "";
+      toast("Credential encrypted and stored.");
+      await loadCredentials();
+    } catch (error) { toast(error.message); }
+  });
+  document.querySelector("#reload-credentials")?.addEventListener("click", async () => { try { await loadCredentials(); } catch (error) { toast(error.message); } });
+  loadCredentials().catch(error => toast(error.message));
+}
 function renderPlaceholder(page) {
  const copy = {Integrations:["Integration registry","App connectors, OAuth lifecycle and reusable integration packages are planned, not implemented."],Credentials:["Credentials vault","Do not put real secrets into workflow fields. A server-side encrypted credentials vault is a required future milestone."],Variables:["Environment variables","Per-environment variables and secret references will be provided by the backend. Browser-local values are not secrets."],Settings:["Workspace settings","User authentication, tenants, RBAC, audit policies and org settings require the backend milestone."],Documentation:["Developer documentation","Review the architecture and roadmap in the repository README and docs folder."]}[page]||["Workspace","Choose a section from the navigation."];
  return `<div class="page-head"><div><div class="eyebrow">Workspace</div><h1>${copy[0]}</h1><p>${copy[1]}</p></div></div><section class="panel page-placeholder"><div><div class="brand-mark" style="margin:auto">e</div><h2>${copy[0]} is on the roadmap</h2><p>This page is intentionally transparent about unimplemented server features.</p><button class="btn-quiet" data-page="Overview">← Back to overview</button></div></section>`;
@@ -250,7 +290,7 @@ function renderLastRun() {
 function render() {
  const root=document.querySelector("#app");
  const pages=["Overview","Workflows","Executions","Integrations","Credentials","Variables","Settings","Documentation"];
- root.innerHTML=`<div class="app-shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">e</div><div><div class="brand-name">e11e <span style="color:#9d91ff">Flow</span></div><div class="brand-sub">Automation studio</div></div></div><div class="workspace-badge"><span>◈ &nbsp; Personal workspace</span><small>${apiConnection?"Server session":"Local prototype"}</small></div><div><div class="nav-label">Workspace</div><nav class="nav">${pages.slice(0,5).map(p=>`<button class="${state.page===p?"active":""}" data-page="${p}"><span class="ico">${navIcon(p)}</span>${p}</button>`).join("")}</nav></div><div><div class="nav-label">Manage</div><nav class="nav">${pages.slice(5).map(p=>`<button class="${state.page===p?"active":""}" data-page="${p}"><span class="ico">${navIcon(p)}</span>${p}</button>`).join("")}</nav></div><div class="side-bottom"><div class="health"><div class="health-top"><span class="dot"></span> Client status <span style="margin-left:auto;color:#60d7a5">Online</span></div><p>${apiConnection?"API: "+esc(apiConnection.baseUrl):"Browser-local mode. Connect an API in Settings for shared workflows."}</p><div class="mini-meter"><span></span></div></div><div class="user-profile"><div class="avatar">e</div><div>e11e workspace<small>Browser session</small></div></div></div></aside><main class="main"><header class="topbar"><div class="crumb">Workspace <span style="color:#596580">/</span> <strong>${state.page==="Editor"?"Workflow editor":state.page}</strong></div><div class="top-actions"><div class="search">⌕ &nbsp; Search workflows <span class="kbd">⌘ K</span></div><button class="icon-btn" id="help-button" title="Prototype notes">ⓘ</button><div class="avatar">e</div></div></header><div class="content ${state.page==="Editor"?"content-editor":""}">${state.page==="Overview"?renderDashboard():state.page==="Workflows"?renderWorkflows():state.page==="Executions"?renderExecutions():state.page==="Editor"?renderEditor():state.page==="Settings"?renderSettings():renderPlaceholder(state.page)}</div></main></div>`;
+ root.innerHTML=`<div class="app-shell"><aside class="sidebar"><div class="brand"><div class="brand-mark">e</div><div><div class="brand-name">e11e <span style="color:#9d91ff">Flow</span></div><div class="brand-sub">Automation studio</div></div></div><div class="workspace-badge"><span>◈ &nbsp; Personal workspace</span><small>${apiConnection?"Server session":"Local prototype"}</small></div><div><div class="nav-label">Workspace</div><nav class="nav">${pages.slice(0,5).map(p=>`<button class="${state.page===p?"active":""}" data-page="${p}"><span class="ico">${navIcon(p)}</span>${p}</button>`).join("")}</nav></div><div><div class="nav-label">Manage</div><nav class="nav">${pages.slice(5).map(p=>`<button class="${state.page===p?"active":""}" data-page="${p}"><span class="ico">${navIcon(p)}</span>${p}</button>`).join("")}</nav></div><div class="side-bottom"><div class="health"><div class="health-top"><span class="dot"></span> Client status <span style="margin-left:auto;color:#60d7a5">Online</span></div><p>${apiConnection?"API: "+esc(apiConnection.baseUrl):"Browser-local mode. Connect an API in Settings for shared workflows."}</p><div class="mini-meter"><span></span></div></div><div class="user-profile"><div class="avatar">e</div><div>e11e workspace<small>Browser session</small></div></div></div></aside><main class="main"><header class="topbar"><div class="crumb">Workspace <span style="color:#596580">/</span> <strong>${state.page==="Editor"?"Workflow editor":state.page}</strong></div><div class="top-actions"><div class="search">⌕ &nbsp; Search workflows <span class="kbd">⌘ K</span></div><button class="icon-btn" id="help-button" title="Prototype notes">ⓘ</button><div class="avatar">e</div></div></header><div class="content ${state.page==="Editor"?"content-editor":""}">${state.page==="Overview"?renderDashboard():state.page==="Workflows"?renderWorkflows():state.page==="Executions"?renderExecutions():state.page==="Editor"?renderEditor():state.page==="Settings"?renderSettings():state.page==="Credentials"?renderCredentials():renderPlaceholder(state.page)}</div></main></div>`;
  root.querySelectorAll("[data-page]").forEach(b=>b.addEventListener("click",()=>setPage(b.dataset.page)));
  root.querySelectorAll("[data-open]").forEach(b=>b.addEventListener("click",()=>openEditor(b.dataset.open)));
  root.querySelector("#create-workflow")?.addEventListener("click",createWorkflow);
@@ -259,6 +299,7 @@ function render() {
  if(state.page==="Workflows") bindWorkflowList();
  if(state.page==="Executions") bindExecutions();
  if(state.page==="Settings") bindSettings();
+ if(state.page==="Credentials") bindCredentials();
  if(state.page==="Editor") bindEditor();
 }
 function createFromTemplate(which) {
