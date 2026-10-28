@@ -11,6 +11,8 @@ process.env.CORS_ORIGINS = "http://localhost:5173";
 process.env.HTTP_ALLOWED_HOSTS = "";
 
 const { buildApp } = await import("../src/app.js");
+const { encryptSecret } = await import("../src/crypto.js");
+const { createWebhookSignature } = await import("../src/webhook-signature.js");
 
 const workflowId = "123e4567-e89b-42d3-a456-426614174000";
 const workspaceId = "223e4567-e89b-42d3-a456-426614174000";
@@ -18,7 +20,7 @@ const token = "test-webhook-token-that-is-more-than-32-chars";
 const tokenHash = createHash("sha256").update(token).digest("hex");
 const eventKey = (ws, wf, nodeId, dedupeKey) => [ws, wf, nodeId, dedupeKey].join("|");
 
-function makePool() {
+function makePool({ requireSignature = false, signatureSecretEncrypted = null } = {}) {
   const executions = new Map();
   const dedupeIndex = new Map();
   const pool = {
@@ -26,15 +28,16 @@ function makePool() {
     dedupeIndex,
     async query(sql, params = []) {
       const statement = sql.replace(/\s+/g, " ").trim();
-      if (statement.startsWith("SELECT t.workspace_id,t.workflow_id,t.node_id,w.active,w.definition FROM webhook_tokens")) {
+      if (statement.startsWith("SELECT t.workspace_id,t.workflow_id,t.node_id,t.signature_secret_encrypted,w.active,w.definition FROM webhook_tokens")) {
         if (params[0] !== workflowId || params[1] !== "hook" || params[2] !== tokenHash) return { rows: [] };
         return {
           rows: [{
             workspace_id: workspaceId,
             workflow_id: workflowId,
             node_id: "hook",
+            signature_secret_encrypted: signatureSecretEncrypted,
             active: true,
-            definition: { nodes: [{ id: "hook", type: "webhook", name: "Webhook Trigger", config: {} }] }
+            definition: { nodes: [{ id: "hook", type: "webhook", name: "Webhook Trigger", config: { requireSignature } }] }
           }]
         };
       }
@@ -198,12 +201,85 @@ test("CORS preflight allows webhook event-ID and idempotency headers", async () 
       headers: {
         origin: "http://localhost:5173",
         "access-control-request-method": "POST",
-        "access-control-request-headers": "x-e11e-webhook-token,x-e11e-event-id,idempotency-key"
+        "access-control-request-headers": "x-e11e-webhook-token,x-e11e-event-id,idempotency-key,x-e11e-webhook-signature,x-e11e-webhook-timestamp"
       }
     });
     assert.equal(response.statusCode, 204);
     assert.match(response.headers["access-control-allow-headers"], /x-e11e-event-id/i);
     assert.match(response.headers["access-control-allow-headers"], /idempotency-key/i);
+    assert.match(response.headers["access-control-allow-headers"], /x-e11e-webhook-signature/i);
+    assert.match(response.headers["access-control-allow-headers"], /x-e11e-webhook-timestamp/i);
+  } finally {
+    await app.close();
+  }
+});
+
+
+test("signature-required webhook accepts a valid HMAC and timestamp", async () => {
+  const signatureSecret = "fixture-signing-secret-for-e11e-tests-32-bytes";
+  const pool = makePool({ requireSignature: true, signatureSecretEncrypted: encryptSecret({ secret: signatureSecret }) });
+  const queue = makeQueue();
+  const app = await buildApp({ pool, queue });
+  try {
+    const body = { event: "created", item: { id: 123, name: "Ada" } };
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const signature = createWebhookSignature(signatureSecret, timestamp, body);
+    const response = await injectWebhook(app, {
+      headers: {
+        "x-e11e-webhook-timestamp": timestamp,
+        "x-e11e-webhook-signature": signature,
+        "x-e11e-event-id": "evt_signed_123"
+      },
+      body
+    });
+    assert.equal(response.statusCode, 202);
+    assert.equal(queue.addCalls.length, 1);
+    assert.equal(pool.executions.size, 1);
+  } finally {
+    await app.close();
+  }
+});
+
+test("signature-required webhook rejects missing, stale and tampered signatures before queueing", async () => {
+  const signatureSecret = "fixture-signing-secret-for-e11e-tests-32-bytes";
+  const pool = makePool({ requireSignature: true, signatureSecretEncrypted: encryptSecret({ secret: signatureSecret }) });
+  const queue = makeQueue();
+  const app = await buildApp({ pool, queue });
+  try {
+    const body = { event: "created", value: 7 };
+    const now = Date.now();
+    const timestamp = String(Math.floor(now / 1000));
+    const signature = createWebhookSignature(signatureSecret, timestamp, body);
+    const missing = await injectWebhook(app, { body });
+    const staleTimestamp = String(Math.floor(now / 1000) - 301);
+    const staleSignature = createWebhookSignature(signatureSecret, staleTimestamp, body);
+    const stale = await injectWebhook(app, {
+      headers: { "x-e11e-webhook-timestamp": staleTimestamp, "x-e11e-webhook-signature": staleSignature },
+      body
+    });
+    const tampered = await injectWebhook(app, {
+      headers: { "x-e11e-webhook-timestamp": timestamp, "x-e11e-webhook-signature": signature },
+      body: { event: "changed", value: 7 }
+    });
+    assert.equal(missing.statusCode, 401);
+    assert.equal(stale.statusCode, 401);
+    assert.equal(tampered.statusCode, 401);
+    assert.equal(queue.addCalls.length, 0);
+    assert.equal(pool.executions.size, 0);
+  } finally {
+    await app.close();
+  }
+});
+
+test("signature-required webhook returns configuration error if signing secret is missing", async () => {
+  const pool = makePool({ requireSignature: true });
+  const queue = makeQueue();
+  const app = await buildApp({ pool, queue });
+  try {
+    const response = await injectWebhook(app);
+    assert.equal(response.statusCode, 409);
+    assert.match(response.json().error, /signature secret is not configured/i);
+    assert.equal(queue.addCalls.length, 0);
   } finally {
     await app.close();
   }
