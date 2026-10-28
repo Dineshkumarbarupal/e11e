@@ -65,7 +65,7 @@ test("HTTP node inspector exposes workspace credential references and secure egr
   assert.match(app, /data-config="credentialHeader"/);
   assert.match(app, /data-config="credentialPrefix"/);
   assert.match(app, /HTTP_ALLOWED_HOSTS/);
-  assert.match(app, /Private IPs, non-HTTPS URLs and automatic redirects are blocked/);
+  assert.match(app, /Private IPs, non-HTTPS URLs and redirects are blocked/);
 });
 
 test("credential vault makes IDs copyable for secure HTTP node configuration", async () => {
