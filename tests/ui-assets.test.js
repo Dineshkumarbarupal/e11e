@@ -94,3 +94,12 @@ test("webhook signature option and one-time signing-secret controls are visible"
   assert.match(app, /event ID \+ "\." \+ canonical JSON body/);
   assert.match(app, /x-e11e-webhook-signature/);
 });
+
+
+test("credential vault exposes encrypted secret rotation without secret read-back", async () => {
+  const app = await readRepoFile("26.00.00/theme/AppName_Basic/User/js/app.js");
+  assert.match(app, /data-credential-rotate=/);
+  assert.match(app, /method: "PUT"/);
+  assert.match(app, /Credential secret rotated and encrypted/);
+  assert.match(app, /The existing secret is never displayed/);
+});
