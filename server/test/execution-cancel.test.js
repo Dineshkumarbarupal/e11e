@@ -60,7 +60,8 @@ function makeQueue({ state = "waiting", jobExists = true } = {}) {
     },
     async close() {}
   };
-  return { queue, get removeCalls() { return removeCalls; } };
+  Object.defineProperty(queue, "removeCalls", { get: () => removeCalls });
+  return queue;
 }
 
 async function withApp({ status = "queued", role = "owner", queueState = "waiting", jobExists = true } = {}, fn) {
