@@ -81,8 +81,14 @@ Request bodies are limited to 64 KiB, response bodies to 1 MiB, and the request 
 
 This is a first guarded implementation, not a production security certification. Configure the smallest possible host allow-list and complete live integration, abuse, load and independent security testing before exposing it to untrusted users.
 
+## Loop Over Items
+
+The `loop` node processes a finite array without creating a graph cycle. Set `config.listField` to a nested path such as `items` or `data.records`; the default is `items`. `config.maxItems` defaults to 20 and must be an integer from 1 to 100. A non-array source or a list beyond the configured maximum fails the node before fan-out. An empty array produces no downstream node runs.
+
+For each array member, each outgoing connection receives a separate downstream task. If an item is an object, its fields are available directly on that task input; the original item is also available at `item`. The runtime adds zero-based `itemIndex`, `itemCount`, and `loop: { field, index, count }`. The ordinary execution step budget still applies, so a loop with many downstream nodes can fail the overall run budget even when under its item limit. This node does not implement arbitrary back-edges, durable iteration state or parallel join semantics.
+
 ## Execution limitations
-The queue worker currently supports Manual Trigger, Webhook Trigger, Schedule Trigger, Edit Fields, IF, Merge, Wait, Log/Output and guarded server HTTPS Request nodes. HTTP calls require `HTTP_ALLOWED_HOSTS`; all other hostname requests are rejected. Loop semantics, node-level retries and human approval are not implemented. Queue retries are limited to the worker job policy; they are not a substitute for idempotent workflow design.
+The queue worker supports Manual Trigger, Webhook Trigger, Schedule Trigger, Edit Fields, IF, Merge, bounded Loop Over Items, Wait, Log/Output and guarded server HTTPS Request nodes. HTTP calls require `HTTP_ALLOWED_HOSTS`; all other hostnames are rejected. Loop Over Items reads an array at `config.listField` (default `items`), rejects lists larger than `config.maxItems` (default 20, hard cap 100), and fans each item into the connected downstream nodes with `item`, `itemIndex`, `itemCount` and `loop.index/count` metadata. This is a bounded fan-out node, not support for arbitrary graph cycles. Durable wait/resume, general loop feedback and human approval are not implemented. Queue retries are limited to the worker job policy; they are not a substitute for idempotent workflow design.
 
 ## Production hardening still required
 Password reset, MFA/SSO, account verification, session revocation, member invite/role administration, tenant security testing, credential rotation, backup/restore validation, retention/deletion workflows, audit coverage tests, egress allow-list governance, live HTTP/security testing, observability, rate-limit tuning and API/client integration remain before production use.
