@@ -47,6 +47,9 @@ export async function executeWorkflowDefinition(workflow, options = {}) {
   const queue = startNodes.map(node => ({ id: node.id, input: options.input || {}, ancestors: [] }));
   const maxSteps = Math.min(Math.max(Number(options.maxSteps) || 100, 1), 500);
   while (queue.length) {
+    if (typeof options.shouldCancel === "function" && await options.shouldCancel()) {
+      throw Object.assign(new Error("Execution cancelled by request."), { cancelled: true, nodeRuns });
+    }
     if (nodeRuns.length >= maxSteps) throw Object.assign(new Error("Execution step budget exceeded."), { nodeRuns });
     const task = queue.shift();
     if (task.ancestors.includes(task.id)) throw Object.assign(new Error("Execution cycle detected."), { nodeRuns });
