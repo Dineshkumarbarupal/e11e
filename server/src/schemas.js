@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { isValidCronExpression } from "./cron-schedule.js";
 
-const nodeTypes = ["manual", "webhook", "schedule", "set", "http", "if", "merge", "wait", "log"];
+const nodeTypes = ["manual", "webhook", "schedule", "set", "http", "if", "merge", "loop", "wait", "log"];
 const nodeSchema = z.object({
   id: z.string().min(1).max(128),
   type: z.enum(nodeTypes),
@@ -28,6 +28,10 @@ export const workflowSchema = z.object({
   const byId = new Map();
   for (const [nodeIndex, node] of flow.nodes.entries()) {
     if (node.type === "schedule" && !isValidCronExpression(node.config?.cron || "")) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["nodes", nodeIndex, "config", "cron"], message: "Schedule Trigger requires a valid five-field UTC cron expression." });
+    if (node.type === "loop") {
+      if (node.config?.listField !== undefined && (typeof node.config.listField !== "string" || !node.config.listField.trim() || node.config.listField.length > 300)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["nodes", nodeIndex, "config", "listField"], message: "Loop Over Items requires a non-empty array field path up to 300 characters." });
+      if (node.config?.maxItems !== undefined && (!Number.isInteger(node.config.maxItems) || node.config.maxItems < 1 || node.config.maxItems > 100)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["nodes", nodeIndex, "config", "maxItems"], message: "Loop Over Items maxItems must be an integer from 1 to 100." });
+    }
     if (node.type === "webhook" && node.config?.requireSignature !== undefined && typeof node.config.requireSignature !== "boolean") ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["nodes", nodeIndex, "config", "requireSignature"], message: "Webhook requireSignature must be a boolean." });
     if (node.type === "http" && node.config?.credentialId != null && !z.string().uuid().safeParse(node.config.credentialId).success) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["nodes", nodeIndex, "config", "credentialId"], message: "HTTP credentialId must be a UUID from the configured workspace credential vault." });
     if (ids.has(node.id)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["nodes"], message: `Duplicate node id: ${node.id}` });
