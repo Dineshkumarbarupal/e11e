@@ -1,6 +1,7 @@
 import { z } from "zod";
+import { isValidCronExpression } from "./cron-schedule.js";
 
-const nodeTypes = ["manual", "webhook", "set", "http", "if", "merge", "wait", "log"];
+const nodeTypes = ["manual", "webhook", "schedule", "set", "http", "if", "merge", "wait", "log"];
 const nodeSchema = z.object({
   id: z.string().min(1).max(128),
   type: z.enum(nodeTypes),
@@ -25,7 +26,8 @@ export const workflowSchema = z.object({
 }).strict().superRefine((flow, ctx) => {
   const ids = new Set();
   const byId = new Map();
-  for (const node of flow.nodes) {
+  for (const [nodeIndex, node] of flow.nodes.entries()) {
+    if (node.type === "schedule" && !isValidCronExpression(node.config?.cron || "")) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["nodes", nodeIndex, "config", "cron"], message: "Schedule Trigger requires a valid five-field UTC cron expression." });
     if (ids.has(node.id)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["nodes"], message: `Duplicate node id: ${node.id}` });
     ids.add(node.id);
     byId.set(node.id, node);
