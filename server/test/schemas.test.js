@@ -113,3 +113,23 @@ test("workflow schema rejects invalid Loop Over Items bounds", () => {
   assert.equal(result.success, false);
   assert.ok(result.error.issues.some(issue => issue.path.includes("maxItems")));
 });
+
+
+test("workflow schema accepts bounded HTTP retry settings", () => {
+  const flow = validFlow();
+  flow.nodes.push({ id: "http", type: "http", name: "Request", x: 0, y: 180, config: { retryCount: 3, retryDelayMs: 5000 } });
+  assert.equal(workflowSchema.safeParse(flow).success, true);
+});
+
+test("workflow schema rejects HTTP retry counts and delays outside supported bounds", () => {
+  for (const config of [
+    { retryCount: -1 }, { retryCount: 4 }, { retryCount: 1.5 },
+    { retryDelayMs: 49 }, { retryDelayMs: 5001 }, { retryDelayMs: 50.5 }
+  ]) {
+    const flow = validFlow();
+    flow.nodes.push({ id: "http", type: "http", name: "Request", x: 0, y: 180, config });
+    const result = workflowSchema.safeParse(flow);
+    assert.equal(result.success, false, JSON.stringify(config));
+    assert.ok(result.error.issues.some(issue => issue.path.includes("retryCount") || issue.path.includes("retryDelayMs")));
+  }
+});
