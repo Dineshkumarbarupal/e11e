@@ -433,3 +433,18 @@ button:disabled{opacity:.58;cursor:not-allowed;transform:none!important}
 #app .version-diff-table td{vertical-align:top}
 #app .version-diff-table code{color:#c4baff;font-size:10px;overflow-wrap:anywhere}
 #app .version-diff-value{margin:0;max-height:190px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;border-radius:6px;background:rgba(6,9,16,.56);padding:8px;color:#aebbd2;font:10px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace}
+
+/* Credential rotation modal — never re-displays the stored secret */
+#app .credential-rotation-modal{position:fixed;inset:0;z-index:1450;display:flex;align-items:center;justify-content:center;padding:clamp(10px,3vw,28px)}
+#app .credential-rotation-modal[hidden]{display:none!important}
+#app .credential-rotation-scrim{position:absolute;inset:0;background:rgba(3,5,12,.82);backdrop-filter:blur(9px)}
+#app .credential-rotation-dialog{position:relative;display:flex;flex-direction:column;gap:14px;width:min(620px,100%);max-height:min(90vh,850px);overflow:auto;padding:clamp(16px,2.6vw,26px);border:1px solid rgba(137,153,192,.22);border-radius:18px;background:#0d1220;box-shadow:0 24px 80px rgba(0,0,0,.48)}
+#app .credential-rotation-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:12px;border-bottom:1px solid rgba(132,151,190,.15)}
+#app .credential-rotation-heading h2{margin:4px 0 6px;font-size:clamp(20px,2.4vw,25px);letter-spacing:-.035em}
+#app .credential-rotation-heading p{margin:0;color:#8490a8;font-size:11px;line-height:1.65}
+#app .credential-rotation-target{padding:10px 12px;border:1px solid rgba(132,151,190,.14);border-radius:9px;background:rgba(255,255,255,.02);color:#8e9bb5;font-size:11px;overflow-wrap:anywhere}
+#app .credential-rotation-target b{color:#dce4f5}
+#app #credential-rotation-secret{min-height:170px;margin-top:8px;font:11px/1.7 ui-monospace,SFMono-Regular,Consolas,monospace}
+#app .credential-rotation-actions{display:flex;justify-content:flex-end;gap:8px;padding-top:5px}
+#app .credential-rotation-dialog .field-help{line-height:1.7}
+@media(max-width:620px){#app .credential-rotation-dialog{max-height:94vh;border-radius:14px;padding:14px}#app .credential-rotation-actions{flex-direction:column-reverse}#app .credential-rotation-actions button{width:100%}}
