@@ -11,13 +11,13 @@ Workflow automation software can hold powerful tokens and send outbound requests
 - SQL statements use parameters; workspace member checks scope workflow/execution/credential lookups.
 - Registration passwords are hashed using bcrypt.
 - Credential payloads are encrypted with AES-256-GCM before database persistence; the API returns only credential metadata.
-- The server executor deliberately refuses HTTP nodes until outbound network policy and credential references exist.
+- Server HTTP nodes require explicit exact-host `HTTP_ALLOWED_HOSTS`; the executor enforces HTTPS/443, pinned DNS, public-IP checks, no automatic redirects, body limits and same-workspace encrypted credential references.
 - Server runs use a bounded step budget and the server schema rejects graph cycles.
 
 ## Known gaps / no production guarantee
 - No MFA, SSO, email verification, password reset, refresh/revocation flow, invitation/member-management UI or full role administration.
 - Browser-side HTTP is limited by browser CORS and is not an enterprise integration runtime.
-- The server HTTP node is disabled. Do not enable it by bypassing the guard; implement DNS/IP pinning, private/link-local/metadata blocking, redirect revalidation, egress policy and abuse testing first.
+- Server HTTP egress is a guarded first implementation, not security-certified. Keep `HTTP_ALLOWED_HOSTS` minimal and blank unless needed; private/reserved IPs and redirects are blocked. Live network tests, formal SSRF review, abuse/load tests, egress allow-list administration and credential rotation remain required.
 - Credentials are encrypted at rest with an environment key. Key rotation, KMS integration, backup-key management, rotation workflows and deletion auditing need implementation.
 - Audit coverage is not transactional for every operation and has not had an independent review.
 - No formal threat model, penetration test, load test, disaster-recovery drill or compliance assessment has been completed.
