@@ -1,5 +1,6 @@
 import { NODE_TYPES, createDefaultWorkflow, executeWorkflow, validateWorkflow } from "./workflow-engine.js";
 import { findAvailableNodePosition, getCanvasDimensions } from "./canvas-layout.js";
+import { isValidCronExpression } from "./cron-schedule.js";
 
 const STORE_KEY = "e11e.flow.workflows.v1";
 const RUNS_KEY = "e11e.flow.runs.v1";
@@ -256,7 +257,7 @@ function renderEditor() {
  <div class="editor-toolbar"><div class="toolbar-left"><span class="tiny-pill">${wf.nodes.length} nodes</span><span class="tiny-pill">${wf.edges.length} connections</span>${validation.length?`<span class="pill-error">${validation.length} validation error(s)</span>`:'<span class="pill-ok">✓ Valid structure</span>'}</div><div class="toolbar-right"><button class="icon-btn" id="zoom-out" title="Zoom out">−</button><span id="zoom-level">100%</span><button class="icon-btn" id="zoom-in" title="Zoom in">＋</button><button class="icon-btn" id="fit-canvas" title="Fit view">⤢</button></div></div>
  <div class="editor-layout">
   <aside class="node-palette"><div class="palette-head"><strong>Node library</strong><span class="tiny-pill">${Object.keys(NODE_TYPES).length}</span></div><p class="palette-hint">Select a node to add it to the canvas.</p>
-   <div class="palette-section">TRIGGERS</div>${["manual","webhook"].map(t=>paletteButton(t)).join("")}
+   <div class="palette-section">TRIGGERS</div>${["manual","webhook","schedule"].map(t=>paletteButton(t)).join("")}
    <div class="palette-section">CORE NODES</div>${["set","http","if","merge","wait","log"].map(t=>paletteButton(t)).join("")}
    <div class="palette-help">Tip: connect a node's right handle to the next node's left handle. Click any node to edit its configuration.</div>
   </aside>
@@ -266,7 +267,7 @@ function renderEditor() {
  <div class="run-drawer"><div class="run-drawer-head"><div><b>Test output</b><span>${state.lastRun?esc(state.lastRun.status):"Ready to test"}</span></div><button class="text-link" id="toggle-output">${state.outputCollapsed?"Show":"Hide"}</button></div><div class="run-input-panel"><label class="field-label" for="run-input">TEST INPUT <span class="run-input-hint">JSON object passed to the trigger</span><textarea class="field-input code-input run-input" id="run-input" rows="5" spellcheck="false">${esc(state.testInput)}</textarea></label><div class="run-input-footer"><span>Tip: IF rules can read fields such as <code>approved</code> or <code>user.name</code>.</span><button class="btn-quiet btn-small" id="reset-test-input">Reset sample</button></div></div><div class="run-output ${state.outputCollapsed?"collapsed":""}" id="run-output">${renderLastRun()}</div></div>
  </div>`;
 }
-function paletteButton(type) { const def=NODE_TYPES[type]; return `<button class="palette-node" data-add-node="${type}"><span class="palette-icon ${def.color}">${def.icon}</span><span><b>${def.label}</b><small>${({manual:"Start the workflow",webhook:"Accept authenticated HTTP POST",set:"Set or transform fields",http:"Call an HTTP endpoint",if:"Route on a condition",merge:"Combine object inputs",wait:"Pause briefly",log:"Inspect the output"})[type]}</small></span><span class="palette-plus">＋</span></button>`; }
+function paletteButton(type) { const def=NODE_TYPES[type]; return `<button class="palette-node" data-add-node="${type}"><span class="palette-icon ${def.color}">${def.icon}</span><span><b>${def.label}</b><small>${({manual:"Start the workflow",webhook:"Accept authenticated HTTP POST",schedule:"Run on a UTC cron schedule",set:"Set or transform fields",http:"Call an HTTP endpoint",if:"Route on a condition",merge:"Combine object inputs",wait:"Pause briefly",log:"Inspect the output"})[type]}</small></span><span class="palette-plus">＋</span></button>`; }
 function renderNode(n) {
  const def=NODE_TYPES[n.type]||{label:n.type,icon:"◇",color:"slate"};
  const incoming=currentWorkflow().edges.some(e=>e.target===n.id);
@@ -280,6 +281,7 @@ function nodeSummary(n) {
  const c=n.config||{};
  if(n.type==="http") return (c.method||"GET")+" · "+(c.url||"Set URL");
  if(n.type==="webhook") return "Authenticated HTTP POST trigger";
+ if(n.type==="schedule") return "Cron "+(c.cron||"Set expression")+" · UTC";
  if(n.type==="set") return Object.keys(c.fields||{}).length+" field(s) configured";
  if(n.type==="if") return (c.field||"field")+" "+(c.operator||"equals")+" "+String(c.value??"");
  if(n.type==="wait") return (c.ms||0)+" ms delay";
@@ -298,7 +300,8 @@ function renderInspector(n) {
  if(n.type==="http") specific=label("HTTP method",`<select class="field-input" data-config="method">${["GET","POST","PUT","PATCH","DELETE","HEAD"].map(m=>`<option ${(c.method||"GET")===m?"selected":""}>${m}</option>`).join("")}</select>`)+label("Request URL",`<input class="field-input" data-config="url" placeholder="https://api.example.com/items" value="${esc(c.url||"")}">`)+label("Headers (JSON)",`<textarea class="field-input code-input" rows="4" data-config-json="headers">${esc(JSON.stringify(c.headers||{},null,2))}</textarea>`)+label("Request body",`<textarea class="field-input code-input" rows="3" data-config="body" placeholder="JSON or text">${esc(c.body||"")}</textarea>`)+label("Timeout (ms)",`<input class="field-input" type="number" min="1000" max="30000" data-config-number="timeoutMs" value="${esc(c.timeoutMs||10000)}">`)+`<p class="field-help warn-text">Requests run in your browser. CORS may block calls; never place secret API keys here.</p>`;
  if(n.type==="if") specific=label("Field path",`<input class="field-input" data-config="field" value="${esc(c.field||"")}" placeholder="user.approved">`)+label("Operator",`<select class="field-input" data-config="operator">${[["equals","Equals"],["not-equals","Does not equal"],["contains","Contains"],["greater-than","Greater than"],["less-than","Less than"],["exists","Exists"],["not-empty","Is not empty"]].map(([v,l])=>`<option value="${v}" ${(c.operator||"equals")===v?"selected":""}>${l}</option>`).join("")}</select>`)+label("Compare value",`<input class="field-input" data-config="value" value="${esc(c.value??"")}" placeholder="true">`)+`<p class="field-help">Choose the T or F output handle on the IF node to create a true/false branch.</p>`;
  if(n.type==="wait") specific=label("Delay in milliseconds (max 1000 in demo)",`<input class="field-input" type="number" min="0" max="1000" data-config-number="ms" value="${esc(c.ms||0)}">`);
- if(n.type==="manual") specific=`<div class="info-block">The workflow starts at this node when you press <b>Test workflow</b>. The test runner passes sample input unless you configure an input payload in a future backend version.</div>`;
+ if(n.type==="manual") specific=`<div class="info-block">The workflow starts at this node when you press <b>Test workflow</b>. Test input is edited in the panel below.</div>`;
+ if(n.type==="schedule") specific=label("Cron expression (UTC)",`<input class="field-input" data-config="cron" value="${esc(c.cron||"0 9 * * 1-5")}" placeholder="0 9 * * 1-5" spellcheck="false">`)+`<p class="field-help">Five fields: minute hour day-of-month month day-of-week. Example <code>0 9 * * 1-5</code> runs at 09:00 UTC on weekdays. Live scheduling requires the server scheduler, worker and an active workflow synced to the API.</p>`+(isValidCronExpression(c.cron||"0 9 * * 1-5")?`<div class="info-block">✓ Valid cron expression · UTC</div>`:`<div class="info-block"><b>Invalid cron expression.</b> Use five numeric fields with wildcards, lists, ranges or steps.</div>`);
  if(n.type==="webhook") {
    const setup = state.webhookSetup && state.webhookSetup.workflowId === currentWorkflow().id && state.webhookSetup.nodeId === n.id ? state.webhookSetup : null;
    specific = '<div class="info-block">Accepts an external HTTP POST when the workflow is active and synced to the server. Create a per-node token; the server stores only a SHA-256 hash.</div>' +
@@ -394,6 +397,7 @@ function addNode(type) {
  if(type==="set")n.config={fields:{result:"ok"},keepInput:true};
  if(type==="http")n.config={url:"https://jsonplaceholder.typicode.com/todos/1",method:"GET",headers:{},timeoutMs:10000};
  if(type==="if")n.config={field:"approved",operator:"equals",value:true};
+ if(type==="schedule")n.config={cron:"0 9 * * 1-5"};
  if(type==="wait")n.config={ms:250};
  wf.nodes.push(n);wf.updatedAt=new Date().toISOString();state.selectedNodeId=n.id;state.fitPending=true;persist();render();
 }
@@ -417,7 +421,7 @@ async function runCurrentWorkflow() {
  try{input=JSON.parse(document.querySelector("#run-input")?.value||state.testInput||"{}");if(!input||typeof input!=="object"||Array.isArray(input))throw new Error("Test input must be a JSON object.");state.testInput=JSON.stringify(input,null,2);}catch(error){toast("Invalid test input: "+error.message);return;}
  button.disabled=true;button.textContent="Running…";
  try {
-  const selected=byId(state.selectedNodeId);const triggerNodeId=selected?.type==="webhook"?selected.id:undefined;
+  const selected=byId(state.selectedNodeId);const triggerNodeId=["webhook","schedule"].includes(selected?.type)?selected.id:undefined;
   const result=await executeWorkflow(wf,{input,maxSteps:100,...(triggerNodeId?{triggerNodeId}:{})});
   result.workflowName=wf.name;result.workflowId=wf.id;state.lastRun=result;const runs=readRuns();runs.unshift(result);localStorage.setItem(RUNS_KEY,JSON.stringify(runs.slice(0,100)));state.runs=runs.slice(0,100);state.outputCollapsed=false;
   const output=document.querySelector("#run-output");if(output){output.classList.remove("collapsed");output.innerHTML=renderLastRun();}
