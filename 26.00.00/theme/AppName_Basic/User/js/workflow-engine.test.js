@@ -171,3 +171,70 @@ test("validator rejects edges entering trigger nodes", () => {
   workflow.edges.push({ id: "back-to-trigger", source: "log_1", target: "trigger_1" });
   assert.ok(validateWorkflow(workflow).some(message => message.includes("Trigger nodes cannot have incoming connections")));
 });
+
+
+test("Loop Over Items fans out each array item to downstream nodes in order", async () => {
+  const workflow = {
+    id: "loop-flow", name: "Loop flow",
+    nodes: [
+      { id: "start", type: "manual", name: "Start", x: 0, y: 0, config: {} },
+      { id: "loop", type: "loop", name: "Loop", x: 200, y: 0, config: { listField: "data.records", maxItems: 5 } },
+      { id: "fields", type: "set", name: "Fields", x: 400, y: 0, config: { fields: { label: "item={{ itemIndex }}/{{ itemCount }} id={{ id }} name={{ name }}" } } },
+      { id: "log", type: "log", name: "Log", x: 600, y: 0, config: {} }
+    ],
+    edges: [
+      { id: "a", source: "start", target: "loop" },
+      { id: "b", source: "loop", target: "fields" },
+      { id: "c", source: "fields", target: "log" }
+    ]
+  };
+  const result = await executeWorkflow(workflow, {
+    input: { data: { records: [{ id: 7, name: "Ada" }, { id: 9, name: "Lin" }] } },
+    maxSteps: 20
+  });
+  const logRuns = result.nodeRuns.filter(run => run.nodeId === "log");
+  assert.equal(result.status, "success");
+  assert.equal(logRuns.length, 2);
+  assert.equal(logRuns[0].output.label, "item=0/2 id=7 name=Ada");
+  assert.equal(logRuns[1].output.label, "item=1/2 id=9 name=Lin");
+  assert.equal(result.nodeRuns.find(run => run.nodeId === "loop").output.loop.itemCount, 2);
+});
+
+test("Loop Over Items rejects a missing or non-array field", async () => {
+  const workflow = {
+    id: "loop-invalid", name: "Loop invalid",
+    nodes: [
+      { id: "start", type: "manual", name: "Start", x: 0, y: 0, config: {} },
+      { id: "loop", type: "loop", name: "Loop", x: 200, y: 0, config: { listField: "records", maxItems: 10 } }
+    ],
+    edges: [{ id: "a", source: "start", target: "loop" }]
+  };
+  await assert.rejects(() => executeWorkflow(workflow, { input: { records: "not-an-array" } }), /expected an array/);
+});
+
+test("Loop Over Items enforces its configured item bound", async () => {
+  const workflow = {
+    id: "loop-limit", name: "Loop limit",
+    nodes: [
+      { id: "start", type: "manual", name: "Start", x: 0, y: 0, config: {} },
+      { id: "loop", type: "loop", name: "Loop", x: 200, y: 0, config: { listField: "items", maxItems: 1 } }
+    ],
+    edges: [{ id: "a", source: "start", target: "loop" }]
+  };
+  await assert.rejects(() => executeWorkflow(workflow, { input: { items: [1, 2] } }), /configured limit is 1/);
+});
+
+test("Loop Over Items with an empty array completes without downstream runs", async () => {
+  const workflow = {
+    id: "loop-empty", name: "Empty loop",
+    nodes: [
+      { id: "start", type: "manual", name: "Start", x: 0, y: 0, config: {} },
+      { id: "loop", type: "loop", name: "Loop", x: 200, y: 0, config: { listField: "items", maxItems: 5 } },
+      { id: "log", type: "log", name: "Log", x: 400, y: 0, config: {} }
+    ],
+    edges: [{ id: "a", source: "start", target: "loop" }, { id: "b", source: "loop", target: "log" }]
+  };
+  const result = await executeWorkflow(workflow, { input: { items: [] } });
+  assert.equal(result.status, "success");
+  assert.equal(result.nodeRuns.filter(run => run.nodeId === "log").length, 0);
+});
