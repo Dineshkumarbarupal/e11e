@@ -8,10 +8,11 @@ e11e Flow is an original workflow-automation project with a browser-based visual
 - Premium responsive dark dashboard, navigation, workflow list and execution-history screens
 - Visual node canvas: move nodes, connect nodes, zoom around the viewport, auto-fit the workflow when opened, retain the canvas position when selecting nodes, and avoid overlapping placement for new nodes. Canvas placement/sizing logic is isolated in a tested helper module
 - IF node with separate true/false output handles
-- Nine node types: Manual Trigger, Webhook Trigger, Schedule Trigger, Edit Fields, HTTP Request (browser demo only), IF, Merge, Wait and Log/Output
+- Ten node types: Manual Trigger, Webhook Trigger, Schedule Trigger, Edit Fields, HTTP Request, IF, Merge, Loop Over Items, Wait and Log/Output
 - Global workflow search, responsive workflow-list filtering and keyboard shortcut (Ctrl/Cmd+K)
 - Editable JSON test payloads for browser runs and server-queued runs; selecting a Webhook or Schedule Trigger tests from that node locally
 - UTC Schedule Trigger with five-field cron expressions, a dedicated scheduler process, PostgreSQL slot deduplication and queue-enqueue retries
+- Bounded Loop Over Items node with nested array paths, per-item downstream fan-out, item metadata and configurable maximum of 1–100 items
 - Local workflow validation, browser-local persistence, JSON import/export and node-by-node test output
 - Local test-run history and execution JSON export
 - Regression tests for UI asset order/existence, responsive styles, canvas layout, workflow validation and execution semantics
@@ -34,7 +35,7 @@ Browser workflows and local run history are stored in `localStorage`. The API JW
 - Server HTTP is disabled unless the operator explicitly configures exact allowed hostnames in `HTTP_ALLOWED_HOSTS`; an empty list keeps outbound HTTP disabled
 
 ## Important gaps
-The app is **not a complete n8n replacement**. Loops, durable wait/resume, full integration runtime/catalog, OAuth lifecycle, AI agents/LLM tools/RAG, human approvals, collaboration/invites, SSO/MFA, retention/deletion controls, scheduler monitoring/misfire recovery and production hardening are still incomplete. The secure HTTP node has not received an independent security review or live network integration test; timezone/DST rules and schedule backfill are also absent. Schedule expressions currently use UTC and do not implement timezone/DST rules or backfill missed runs. The generic webhook HMAC flow and route-level webhook limits have focused tests committed, but native integration execution, multi-instance shared limiting, independent security review and full integration/load tests remain outstanding. Do not expose it publicly or use production credentials.
+The app is **not a complete n8n replacement**. General loop cycles/parallel joins, durable wait/resume, full integration runtime/catalog, OAuth lifecycle, AI agents/LLM tools/RAG, human approvals, collaboration/invites, SSO/MFA, retention/deletion controls, scheduler monitoring/misfire recovery and production hardening are still incomplete. The secure HTTP node has not received an independent security review or live network integration test; timezone/DST rules and schedule backfill are also absent. Schedule expressions currently use UTC and do not implement timezone/DST rules or backfill missed runs. The generic webhook HMAC flow and route-level webhook limits have focused tests committed, but native integration execution, multi-instance shared limiting, independent security review and full integration/load tests remain outstanding. Do not expose it publicly or use production credentials.
 
 ## Requested directory convention
 ```text
