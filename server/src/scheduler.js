@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Queue } from "bullmq";
 import IORedis from "ioredis";
 import { config } from "./config.js";
@@ -25,7 +26,7 @@ function logError(message, error) {
 
 async function recordDueSchedule(trigger) {
   const client = await pool.connect();
-  const executionId = cryptoRandomUUID();
+  const executionId = randomUUID();
   let transactionOpen = false;
   try {
     await client.query("BEGIN");
@@ -60,10 +61,6 @@ async function recordDueSchedule(trigger) {
   } finally {
     client.release();
   }
-}
-
-function cryptoRandomUUID() {
-  return globalThis.crypto.randomUUID();
 }
 
 async function enqueuePendingExecutions() {
