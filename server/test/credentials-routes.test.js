@@ -196,7 +196,7 @@ test("credential rotation returns 404 for a credential outside the current works
 test("credential payloads must be JSON objects and duplicate names return a conflict", async () => {
   await withApp({}, async ({ app, pool, token }) => {
     const invalid = await request(app, token, "POST", "", { name: "Bad", service: "example", secret: ["not", "an", "object"] });
-    assert.equal(invalid.statusCode, 400);
+    assert.equal(invalid.statusCode, 422);
     assert.equal(pool.credentials.size, 0);
     await request(app, token, "POST", "", { name: "Same", service: "example", secret: { token: "one" } });
     const duplicate = await request(app, token, "POST", "", { name: "Same", service: "example", secret: { token: "two" } });
