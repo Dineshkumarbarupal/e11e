@@ -4,7 +4,7 @@ const STORE_KEY = "e11e.flow.workflows.v1";
 const RUNS_KEY = "e11e.flow.runs.v1";
 const API_KEY = "e11e.flow.api-connection.v1";
 let apiConnection = readApiConnection();
-const state = { page: "Overview", currentId: null, selectedNodeId: null, connectFrom: null, connectBranch: null, runs: readRuns(), drag: null, zoom: 1 };
+const state = { page: "Overview", currentId: null, selectedNodeId: null, connectFrom: null, connectBranch: null, webhookSetup: null, runs: readRuns(), drag: null, zoom: 1 };
 
 function readRuns() { try { return JSON.parse(localStorage.getItem(RUNS_KEY) || "[]"); } catch { return []; } }
 function loadWorkflows() {
@@ -84,6 +84,16 @@ async function syncAllWorkflows() {
   state.currentId = synced.find(flow => flow.id === previousId)?.id || synced[0]?.id || null;
   render();
   toast("Synced " + synced.length + " workflow(s) with the server.");
+}
+async function generateWebhookToken() {
+  if (!apiConnection) throw new Error("Connect to the API in Settings first.");
+  const node = byId(state.selectedNodeId);
+  if (!node || node.type !== "webhook") throw new Error("Select a Webhook Trigger node first.");
+  const flow = await syncCurrentWorkflow(false);
+  const result = await apiRequest(workspaceApiPath() + "/workflows/" + encodeURIComponent(flow.id) + "/nodes/" + encodeURIComponent(node.id) + "/webhook-token", { method: "POST", body: JSON.stringify({}) });
+  state.webhookSetup = { workflowId: flow.id, nodeId: node.id, path: result.webhook.path, token: result.webhook.token };
+  render();
+  toast("Webhook token created. Copy it now; it is not stored in workflow JSON.");
 }
 async function queueServerExecution() {
   const flow = await syncCurrentWorkflow(false);
@@ -241,7 +251,7 @@ function renderEditor() {
  <div class="editor-toolbar"><div class="toolbar-left"><span class="tiny-pill">${wf.nodes.length} nodes</span><span class="tiny-pill">${wf.edges.length} connections</span>${validation.length?`<span class="pill-error">${validation.length} validation error(s)</span>`:'<span class="pill-ok">✓ Valid structure</span>'}</div><div class="toolbar-right"><button class="icon-btn" id="zoom-out" title="Zoom out">−</button><span id="zoom-level">100%</span><button class="icon-btn" id="zoom-in" title="Zoom in">＋</button><button class="icon-btn" id="fit-canvas" title="Fit view">⤢</button></div></div>
  <div class="editor-layout">
   <aside class="node-palette"><div class="palette-head"><strong>Node library</strong><span class="tiny-pill">${Object.keys(NODE_TYPES).length}</span></div><p class="palette-hint">Select a node to add it to the canvas.</p>
-   <div class="palette-section">TRIGGERS</div>${["manual"].map(t=>paletteButton(t)).join("")}
+   <div class="palette-section">TRIGGERS</div>${["manual","webhook"].map(t=>paletteButton(t)).join("")}
    <div class="palette-section">CORE NODES</div>${["set","http","if","merge","wait","log"].map(t=>paletteButton(t)).join("")}
    <div class="palette-help">Tip: connect a node's right handle to the next node's left handle. Click any node to edit its configuration.</div>
   </aside>
@@ -251,7 +261,7 @@ function renderEditor() {
  <div class="run-drawer"><div class="run-drawer-head"><div><b>Test output</b><span>${state.lastRun?esc(state.lastRun.status):"Ready to test"}</span></div><button class="text-link" id="toggle-output">${state.outputCollapsed?"Show":"Hide"}</button></div><div class="run-output ${state.outputCollapsed?"collapsed":""}" id="run-output">${renderLastRun()}</div></div>
  </div>`;
 }
-function paletteButton(type) { const def=NODE_TYPES[type]; return `<button class="palette-node" data-add-node="${type}"><span class="palette-icon ${def.color}">${def.icon}</span><span><b>${def.label}</b><small>${({manual:"Start the workflow",set:"Set or transform fields",http:"Call an HTTP endpoint",if:"Route on a condition",merge:"Combine object inputs",wait:"Pause briefly",log:"Inspect the output"})[type]}</small></span><span class="palette-plus">＋</span></button>`; }
+function paletteButton(type) { const def=NODE_TYPES[type]; return `<button class="palette-node" data-add-node="${type}"><span class="palette-icon ${def.color}">${def.icon}</span><span><b>${def.label}</b><small>${({manual:"Start the workflow",webhook:"Accept authenticated HTTP POST",set:"Set or transform fields",http:"Call an HTTP endpoint",if:"Route on a condition",merge:"Combine object inputs",wait:"Pause briefly",log:"Inspect the output"})[type]}</small></span><span class="palette-plus">＋</span></button>`; }
 function renderNode(n) {
  const def=NODE_TYPES[n.type]||{label:n.type,icon:"◇",color:"slate"};
  const incoming=currentWorkflow().edges.some(e=>e.target===n.id);
@@ -264,6 +274,7 @@ function renderNode(n) {
 function nodeSummary(n) {
  const c=n.config||{};
  if(n.type==="http") return (c.method||"GET")+" · "+(c.url||"Set URL");
+ if(n.type==="webhook") return "Authenticated HTTP POST trigger";
  if(n.type==="set") return Object.keys(c.fields||{}).length+" field(s) configured";
  if(n.type==="if") return (c.field||"field")+" "+(c.operator||"equals")+" "+String(c.value??"");
  if(n.type==="wait") return (c.ms||0)+" ms delay";
@@ -283,6 +294,12 @@ function renderInspector(n) {
  if(n.type==="if") specific=label("Field path",`<input class="field-input" data-config="field" value="${esc(c.field||"")}" placeholder="user.approved">`)+label("Operator",`<select class="field-input" data-config="operator">${[["equals","Equals"],["not-equals","Does not equal"],["contains","Contains"],["greater-than","Greater than"],["less-than","Less than"],["exists","Exists"],["not-empty","Is not empty"]].map(([v,l])=>`<option value="${v}" ${(c.operator||"equals")===v?"selected":""}>${l}</option>`).join("")}</select>`)+label("Compare value",`<input class="field-input" data-config="value" value="${esc(c.value??"")}" placeholder="true">`)+`<p class="field-help">Choose the T or F output handle on the IF node to create a true/false branch.</p>`;
  if(n.type==="wait") specific=label("Delay in milliseconds (max 1000 in demo)",`<input class="field-input" type="number" min="0" max="1000" data-config-number="ms" value="${esc(c.ms||0)}">`);
  if(n.type==="manual") specific=`<div class="info-block">The workflow starts at this node when you press <b>Test workflow</b>. The test runner passes sample input unless you configure an input payload in a future backend version.</div>`;
+ if(n.type==="webhook") {
+   const setup = state.webhookSetup && state.webhookSetup.workflowId === currentWorkflow().id && state.webhookSetup.nodeId === n.id ? state.webhookSetup : null;
+   specific = '<div class="info-block">Accepts an external HTTP POST when the workflow is active and synced to the server. Create a per-node token; the server stores only a SHA-256 hash.</div>' +
+     (apiConnection ? '<button class="btn-quiet" id="generate-webhook-token">Generate / rotate endpoint token</button>' : '<button class="btn-quiet" data-page="Settings">Connect API to configure endpoint</button>') +
+     (setup ? '<div class="webhook-result"><b>Endpoint</b><input class="field-input" readonly value="' + esc(apiConnection.baseUrl + setup.path) + '"><b>Token (shown only now)</b><input class="field-input" readonly value="' + esc(setup.token) + '"><div class="field-help">Header: x-e11e-webhook-token</div><button class="btn-quiet" id="copy-webhook-token">Copy token</button><small>Use POST with a JSON body. Keep this token private; it is not saved in workflow JSON.</small></div>' : '');
+ }
  if(n.type==="merge") specific=`<div class="info-block">The demo executor combines object inputs that have already reached this node. Fan-in execution is simplified in this prototype.</div>`;
  if(n.type==="log") specific=`<div class="info-block">Captures its input as the node output. Inspect the Test output drawer after a run.</div>`;
  const relatedEdges=currentWorkflow().edges.filter(e=>e.source===n.id||e.target===n.id); const connections=relatedEdges.length?relatedEdges.map(e=>{const source=byId(e.source),target=byId(e.target);return `<div class="connection-row"><span>${esc(source?.name||e.source)} <i>→</i> ${esc(target?.name||e.target)}<small>${e.sourceHandle?" · "+esc(e.sourceHandle.toUpperCase())+" branch":""}</small></span><button class="icon-btn" data-delete-edge="${esc(e.id)}" title="Remove connection">×</button></div>`;}).join(""):'<div class="field-help">No connections yet.</div>';
@@ -334,6 +351,8 @@ function bindEditor() {
  document.querySelector("#run-workflow")?.addEventListener("click",runCurrentWorkflow);
  document.querySelector("#sync-current")?.addEventListener("click",async()=>{try{await syncCurrentWorkflow();toast("Workflow saved to the server.");}catch(error){toast(error.message);}});
  document.querySelector("#queue-server-run")?.addEventListener("click",async()=>{try{await queueServerExecution();}catch(error){toast(error.message);}});
+ document.querySelector("#generate-webhook-token")?.addEventListener("click",async()=>{try{await generateWebhookToken();}catch(error){toast(error.message);}});
+ document.querySelector("#copy-webhook-token")?.addEventListener("click",async()=>{try{await navigator.clipboard.writeText(state.webhookSetup.token);toast("Webhook token copied.");}catch{toast("Clipboard unavailable; copy the token manually.");}});
  document.querySelectorAll("[data-add-node]").forEach(b=>b.addEventListener("click",()=>addNode(b.dataset.addNode)));
  document.querySelectorAll("[data-node-settings]").forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();state.selectedNodeId=b.dataset.nodeSettings;render();}));
  document.querySelectorAll("[data-node]").forEach(el=>el.addEventListener("click",()=>{if(state.connectFrom){toast("Connect using the small input handle on the target node.");return;}state.selectedNodeId=el.dataset.node;render();}));
