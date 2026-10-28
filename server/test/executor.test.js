@@ -56,3 +56,19 @@ test("server executor refuses HTTP until secure egress is implemented", async ()
   };
   await assert.rejects(() => executeWorkflowDefinition(flow), /outbound network policy/);
 });
+
+test("server executor starts specifically at a webhook trigger node", async () => {
+  const flow = {
+    id: "webhook-flow", name: "Webhook flow", active: true,
+    nodes: [
+      { id: "manual", type: "manual", name: "Manual", x: 0, y: 0, config: {} },
+      { id: "hook", type: "webhook", name: "Webhook", x: 0, y: 150, config: {} },
+      { id: "output", type: "log", name: "Webhook output", x: 250, y: 150, config: {} }
+    ],
+    edges: [{ id: "hook-output", source: "hook", target: "output" }]
+  };
+  const run = await executeWorkflowDefinition(flow, { input: { event: "created" }, triggerNodeId: "hook" });
+  assert.equal(run.status, "success");
+  assert.equal(run.output.event, "created");
+  assert.ok(!run.nodeRuns.some(item => item.nodeId === "manual"));
+});
