@@ -55,7 +55,7 @@ Add a Webhook Trigger node to a workflow, sign in to the frontend, and use the n
 - Token rotation invalidates the previous token. The server redacts webhook tokens from request logs.
 - Optional retry deduplication: send `x-e11e-event-id` or `Idempotency-Key` with a 1–128 character value using letters, digits, dot, underscore, colon or hyphen. Repeated IDs for the same workspace/workflow/trigger return HTTP 200 with the previous execution ID/status and `duplicate: true`; no second queue job is created. The raw event ID is SHA-256 hashed before storage. Omit the header for legacy non-deduplicated behavior. If Redis enqueueing fails, the deduplication key is released so a provider retry can create a new execution.
 - The route has the API body-size and rate limits; production should add provider-specific signature verification, per-webhook quotas, secret rotation policy and end-to-end abuse tests.
-- Browser callers must use an origin configured in `CORS_ORIGINS`; the API CORS allow-list includes `x-e11e-webhook-token` for the webhook preflight.
+- Browser callers must use an origin configured in `CORS_ORIGINS`; the API CORS allow-list includes `x-e11e-webhook-token`, `x-e11e-event-id` and `idempotency-key` for webhook preflight.
 
 
 ## UTC schedule triggers
