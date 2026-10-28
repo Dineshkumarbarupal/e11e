@@ -1,0 +1,28 @@
+{
+  "name": "e11e-flow-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "worker": "node src/worker.js",
+    "migrate": "node src/migrate.js",
+    "check": "node --check src/index.js && node --check src/app.js && node --check src/worker.js && node --check src/executor.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.2",
+    "@fastify/helmet": "^13.0.1",
+    "@fastify/jwt": "^9.0.1",
+    "@fastify/rate-limit": "^10.2.1",
+    "bcryptjs": "^2.4.3",
+    "bullmq": "^5.34.10",
+    "dotenv": "^16.4.7",
+    "fastify": "^5.2.1",
+    "ioredis": "^5.4.2",
+    "pg": "^8.13.1",
+    "zod": "^3.24.1"
+  }
+}
