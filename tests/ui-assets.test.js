@@ -145,7 +145,7 @@ test("workflow history compares saved definitions and escapes changed values", a
   const app = await readRepoFile(UI_ROOT + "js/app.js");
   const diff = await readRepoFile(UI_ROOT + "js/workflow-version-diff.js");
   assert.match(app, /data-compare-workflow-version/);
-  assert.match(app, /diffWorkflowDefinitions\\(older\\.definition, latest\\.definition\\)/);
-  assert.match(app, /esc\\(displayValue\\(change\\.beforeValue, change\\.beforeExists\\)\\)/);
+  assert.match(app, /diffWorkflowDefinitions\(older\.definition, latest\.definition\)/);
+  assert.match(app, /esc\(displayValue\(change\.beforeValue, change\.beforeExists\)\)/);
   assert.match(diff, /export function diffWorkflowDefinitions/);
 });
