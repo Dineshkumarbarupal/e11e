@@ -39,3 +39,15 @@ test("IF node only routes to the matching true branch", async () => {
   assert.ok(result.nodeRuns.some(run => run.nodeId === "yes"));
   assert.ok(!result.nodeRuns.some(run => run.nodeId === "no"));
 });
+
+test("validator rejects cycles before execution", () => {
+  const workflow = createDefaultWorkflow();
+  workflow.edges.push({ id: "cycle", source: "log_1", target: "trigger_1" });
+  assert.ok(validateWorkflow(workflow).some(message => message.includes("Cycles are not supported")));
+});
+
+test("validator rejects IF branch handles on non-IF nodes", () => {
+  const workflow = createDefaultWorkflow();
+  workflow.edges[0].sourceHandle = "true";
+  assert.ok(validateWorkflow(workflow).some(message => message.includes("non-IF")));
+});
