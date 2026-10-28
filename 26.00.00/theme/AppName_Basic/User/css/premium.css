@@ -398,3 +398,9 @@ button:disabled{opacity:.58;cursor:not-allowed;transform:none!important}
 
 #app .search:focus-within{border-color:rgba(169,154,255,.62);background:rgba(169,154,255,.05);box-shadow:0 0 0 3px rgba(169,154,255,.08)}
 #app .search input:focus-visible{outline:none!important}
+
+/* Server execution inspector is readable without overwhelming the premium table */
+#app .server-execution-detail{margin-top:14px}
+#app .server-execution-detail> b{display:block;margin-bottom:10px;color:#dce4f5;font-size:12px}
+#app .server-execution-json{margin:10px 0 0;padding:14px;border:1px solid rgba(132,151,190,.16);border-radius:10px;background:rgba(5,8,15,.62);color:#acb8d0;font:10px/1.75 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;max-height:420px;overflow:auto}
+@media(max-width:620px){#app .server-execution-json{padding:10px;font-size:9px;max-height:300px}}
