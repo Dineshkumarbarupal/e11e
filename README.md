@@ -43,7 +43,7 @@ AppName/
 ```
 
 ## Run the browser MVP
-Requires Node.js 24 LTS or newer. Node 24 is the project's supported runtime target.
+Requires Node.js 24 LTS or newer. Node 24 is the project's supported runtime target. The Node.js release schedule marks 24.x as Active LTS and 20.x as EOL; see [official releases](https://nodejs.org/en/about/previous-releases). Vite's currently supported lines are documented in [Vite releases](https://vite.dev/releases).
 ```bash
 npm install
 npm run check
