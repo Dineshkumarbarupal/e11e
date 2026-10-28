@@ -151,12 +151,29 @@ async function loadServerExecutions() {
   if (!target) return;
   const rows = state.serverRuns.map(run => {
     const cancellable = ["queued", "running"].includes(String(run.status).toLowerCase());
-    return '<tr><td>' + esc(run.id) + '</td><td>' + esc(run.workflowId) + '</td><td><span class="status ' + (run.status === "success" ? "" : "paused") + '">' + esc(run.status) + '</span></td><td>' + esc(run.queuedAt ? new Date(run.queuedAt).toLocaleString() : "") + '</td><td>' + (cancellable ? '<button class="btn-quiet btn-small" data-cancel-server-execution="' + esc(run.id) + '">Cancel</button>' : '<span class="muted">—</span>') + '</td></tr>';
+    return '<tr><td>' + esc(run.id) + '</td><td>' + esc(run.workflowId) + '</td><td><span class="status ' + (run.status === "success" ? "" : "paused") + '">' + esc(run.status) + '</span></td><td>' + esc(run.queuedAt ? new Date(run.queuedAt).toLocaleString() : "") + '</td><td><button class="btn-quiet btn-small" data-server-execution-detail="' + esc(run.id) + '">Details</button> ' + (cancellable ? '<button class="btn-quiet btn-small" data-cancel-server-execution="' + esc(run.id) + '">Cancel</button>' : "") + '</td></tr>';
   }).join("");
   target.innerHTML = '<div class="server-runs-title">Server queue history (' + state.serverRuns.length + ')</div>' +
     (state.serverRuns.length
-      ? '<div class="table-wrap"><table class="data-table"><thead><tr><th>Execution</th><th>Workflow</th><th>Status</th><th>Queued</th><th>Action</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
-      : '<div class="empty-state">No server executions yet.</div>');
+      ? '<div class="table-wrap"><table class="data-table"><thead><tr><th>Execution</th><th>Workflow</th><th>Status</th><th>Queued</th><th>Actions</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+      : '<div class="empty-state">No server executions yet.</div>') +
+    '<div id="server-execution-detail"></div>';
+  target.querySelectorAll("[data-server-execution-detail]").forEach(button => button.addEventListener("click", async () => {
+    const executionId = button.dataset.serverExecutionDetail;
+    button.disabled = true;
+    try {
+      const response = await apiRequest(workspaceApiPath() + "/executions/" + encodeURIComponent(executionId));
+      const execution = response.execution;
+      const detail = document.querySelector("#server-execution-detail");
+      if (detail && execution) {
+        detail.innerHTML = '<div class="notice server-execution-detail"><b>Server execution ' + esc(execution.id) + ' · ' + esc(execution.status) + '</b><pre class="server-execution-json">' + esc(JSON.stringify(execution, null, 2)) + '</pre></div>';
+      }
+    } catch (error) {
+      toast(error.message);
+    } finally {
+      button.disabled = false;
+    }
+  }));
   target.querySelectorAll("[data-cancel-server-execution]").forEach(button => button.addEventListener("click", async () => {
     const executionId = button.dataset.cancelServerExecution;
     if (!confirm("Cancel this server execution? A running node may finish its current request before cancellation takes effect.")) return;
