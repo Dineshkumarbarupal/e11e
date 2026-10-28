@@ -11,6 +11,7 @@ import { pool } from "./db.js";
 import { redis } from "./redis.js";
 import { encryptSecret } from "./crypto.js";
 import { workflowSchema, registerSchema, loginSchema, credentialSchema } from "./schemas.js";
+import { getWebhookDedupeKey } from "./webhook-idempotency.js";
 
 const workspaceNameSchema = z.object({ name: z.string().trim().min(1).max(120) });
 const runSchema = z.object({ input: z.record(z.unknown()).default({}) });
@@ -47,7 +48,7 @@ export async function buildApp(overrides = {}) {
       return callback(new Error("Origin is not allowed by CORS"), false);
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["authorization", "content-type", "x-e11e-webhook-token"],
+    allowedHeaders: ["authorization", "content-type", "x-e11e-webhook-token", "x-e11e-event-id", "idempotency-key"],
     maxAge: 600
   });
   await app.register(rateLimit, { max: config.RATE_LIMIT_MAX, timeWindow: "1 minute" });
@@ -259,18 +260,34 @@ export async function buildApp(overrides = {}) {
     const trigger = (definition.nodes || []).find(node => node.id === nodeId && node.type === "webhook");
     if (!trigger) return reply.code(404).send({ error: "Webhook endpoint not found." });
     if (!queue) return reply.code(503).send({ error: "Execution queue is unavailable." });
+    let dedupeKey;
+    try {
+      dedupeKey = getWebhookDedupeKey(request.headers);
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "Invalid webhook event ID." });
+    }
     const executionId = randomUUID();
-    await db.query(
-      "INSERT INTO executions(id,workspace_id,workflow_id,status,input,trigger_type,trigger_node_id) VALUES($1,$2,$3,'queued',$4::jsonb,'webhook',$5)",
-      [executionId, row.workspace_id, row.workflow_id, JSON.stringify(request.body ?? {}), nodeId]
+    const inserted = await db.query(
+      "INSERT INTO executions(id,workspace_id,workflow_id,status,input,trigger_type,trigger_node_id,dedupe_key) VALUES($1,$2,$3,'queued',$4::jsonb,'webhook',$5,$6) ON CONFLICT DO NOTHING RETURNING id,status",
+      [executionId, row.workspace_id, row.workflow_id, JSON.stringify(request.body ?? {}), nodeId, dedupeKey]
     );
+    if (!inserted.rows[0]) {
+      if (!dedupeKey) return reply.code(503).send({ error: "Unable to record webhook execution." });
+      const existing = await db.query(
+        "SELECT id,status FROM executions WHERE workspace_id=$1 AND workflow_id=$2 AND trigger_type='webhook' AND trigger_node_id=$3 AND dedupe_key=$4 ORDER BY queued_at DESC LIMIT 1",
+        [row.workspace_id, row.workflow_id, nodeId, dedupeKey]
+      );
+      const previous = existing.rows[0];
+      if (!previous) return reply.code(503).send({ error: "Unable to resolve a duplicate webhook event." });
+      return reply.code(200).send({ execution: { id: previous.id, status: previous.status, duplicate: true } });
+    }
     try {
       await queue.add("execute", { executionId }, { jobId: executionId, attempts: 2, backoff: { type: "exponential", delay: 1500 }, removeOnComplete: 200, removeOnFail: 1000 });
     } catch {
-      await db.query("UPDATE executions SET status='error',error='Unable to enqueue webhook execution',finished_at=now() WHERE id=$1", [executionId]);
+      await db.query("UPDATE executions SET status='error',dedupe_key=NULL,error='Unable to enqueue webhook execution',finished_at=now() WHERE id=$1", [executionId]);
       return reply.code(503).send({ error: "Unable to enqueue webhook execution." });
     }
-    return reply.code(202).send({ execution: { id: executionId, status: "queued" } });
+    return reply.code(202).send({ execution: { id: executionId, status: "queued", duplicate: false } });
   });
 
   app.post("/api/workspaces/:workspaceId/workflows/:workflowId/executions", { preHandler: [app.authenticate] }, async (request, reply) => {
