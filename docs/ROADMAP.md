@@ -5,9 +5,11 @@
 ## Implemented in this repository
 - [x] Requested root folders and UI theme structure under `26.00.00/theme/AppName_Basic/User/`
 - [x] Premium responsive dashboard, navigation, workflow library and execution-history screens
+- [x] Cohesive premium theme layer aligned to the actual app shell, with responsive editor layouts and accessible focus states
+- [x] Global workflow search (Enter / Ctrl+K / Cmd+K) plus a visible mobile-friendly workflow-list filter
 - [x] Visual node canvas, node drag-to-position, connector handles, zoom controls and selected-node inspector
 - [x] IF node's true/false branch handles and connection management
-- [x] Seven node types: Manual Trigger, Edit Fields, HTTP Request (browser demo only), IF, Merge, Wait and Log/Output
+- [x] Eight node types: Manual Trigger, Webhook Trigger, Edit Fields, HTTP Request (browser demo only), IF, Merge, Wait and Log/Output
 - [x] Workflow structure validation, local persistence, JSON import/export and per-node test output
 - [x] Local execution history and run export
 - [x] Browser UI sign-in/register to server, manual workflow push/pull, server-side queue and server run-history loading
@@ -17,6 +19,7 @@
 - [x] Token-protected webhook endpoints with per-node SHA-256 token hashes and trigger-specific execution
 - [x] Tracked SQL migrations, local Docker Compose services and server worker tests
 - [x] Browser engine unit tests and server schema tests
+- [x] Regression test proving an explicit webhook trigger starts the matching node instead of the manual trigger
 - [x] GitHub Actions workflow configured for JS syntax, tests and static build
 - [x] API/security/architecture/deployment documentation
 
@@ -35,7 +38,7 @@
 - [ ] CI result verification, deployment automation, metrics/traces, alerting, backups and disaster-recovery drills
 
 ## Current behavior
-The browser application stores workflows and local run history in localStorage. API login can save a short-lived token in sessionStorage. Server workflow sync is explicit (push/pull), not continuous. The server worker supports only Manual, Edit Fields, IF, Merge, Wait and Log/Output. The browser HTTP node is a non-sensitive demo feature with CORS constraints. The server HTTP node intentionally refuses execution until secure egress controls and credential references are available.
+The browser application stores workflows and local run history in localStorage. API login can save a short-lived token in sessionStorage. Server workflow sync is explicit (push/pull), not continuous. The server worker supports Manual, Webhook, Edit Fields, IF, Merge, Wait and Log/Output. The browser HTTP node is a non-sensitive demo feature with CORS constraints. The server HTTP node intentionally refuses execution until secure egress controls and credential references are available.
 
 ## Run and verify
 ```bash
