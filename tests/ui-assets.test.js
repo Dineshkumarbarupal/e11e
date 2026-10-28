@@ -56,3 +56,28 @@ test("index uses versioned style and script URLs to reduce stale UI caching", as
   assert.match(html, /premium\.css\?v=/);
   assert.match(html, /app\.js\?v=/);
 });
+
+
+test("HTTP node inspector exposes workspace credential references and secure egress guidance", async () => {
+  const app = await readRepoFile("26.00.00/theme/AppName_Basic/User/js/app.js");
+  assert.match(app, /data-config="credentialId"/);
+  assert.match(app, /data-config="credentialField"/);
+  assert.match(app, /data-config="credentialHeader"/);
+  assert.match(app, /data-config="credentialPrefix"/);
+  assert.match(app, /HTTP_ALLOWED_HOSTS/);
+  assert.match(app, /Private IPs, non-HTTPS URLs and automatic redirects are blocked/);
+});
+
+test("credential vault makes IDs copyable for secure HTTP node configuration", async () => {
+  const app = await readRepoFile("26.00.00/theme/AppName_Basic/User/js/app.js");
+  assert.match(app, /data-credential-copy=/);
+  assert.match(app, /Credential ID copied/);
+  assert.match(app, /Copy ID/);
+});
+
+test("main HTML cache-bust version is consistent across all UI assets", async () => {
+  const html = await readRepoFile("index.html");
+  const versions = [...html.matchAll(/\\?v=([0-9-]+)/g)].map(match => match[1]);
+  assert.ok(versions.length >= 3);
+  assert.ok(versions.every(version => version === versions[0]), "all UI assets should use the same cache version");
+});
