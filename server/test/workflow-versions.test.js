@@ -38,11 +38,11 @@ function makePool({ role = "owner", exists = true } = {}) {
     created_at: now,
     updated_at: now
   } : null;
-  const versions = [
+  const versions = exists ? [
     { workspace_id: workspaceId, workflow_id: workflowId, version: 3, name: "Version three", active: false, definition: flow("Version three"), created_by: userId, created_at: now },
     { workspace_id: workspaceId, workflow_id: workflowId, version: 2, name: "Version two", active: true, definition: { ...flow("Version two"), active: true }, created_by: userId, created_at: new Date("2026-10-27T08:00:00Z") },
     { workspace_id: workspaceId, workflow_id: workflowId, version: 1, name: "Version one", active: false, definition: flow("Version one"), created_by: userId, created_at: new Date("2026-10-26T08:00:00Z") }
-  ];
+  ] : [];
   const audits = [];
   return {
     workflow,
