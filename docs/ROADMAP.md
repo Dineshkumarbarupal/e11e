@@ -1,6 +1,6 @@
 # Product roadmap and progress meter
 
-**Progress snapshot: approximately 56% of a broad n8n-like MVP scope.** This is a rough engineering estimate, not test coverage, enterprise readiness or feature parity with n8n.
+**Progress snapshot: approximately 57% of a broad n8n-like MVP scope.** This is a rough engineering estimate, not test coverage, enterprise readiness or feature parity with n8n.
 
 ## Implemented in this repository
 - [x] Requested root folders and UI theme structure under `26.00.00/theme/AppName_Basic/User/`
@@ -48,8 +48,8 @@
 - [ ] Complete control flow: loops, parallel joins, durable waits/resume, cancellation, node-level retries and replay
 - [ ] AI agents, supported LLM adapters, tool permissions, vector DB/RAG and human approvals
 - [ ] SSO/MFA, account verification/password reset, session revocation, workspace invites and role administration
-- [x] UI credential vault for encrypted create/list/delete and metadata-only listing
-- [ ] Credential rotation/KMS, environment promotion, reusable sub-workflows and collaboration
+- [x] UI credential vault for encrypted create/list/rotate/delete and metadata-only listing; replacement secret is never read back
+- [ ] Master-key rotation/KMS integration, environment promotion, reusable sub-workflows and collaboration
 - [ ] Frontend conflict resolution/continuous synchronization and complete server execution-detail UI
 - [ ] Tenant isolation review, comprehensive authorization tests, audit completeness and data retention/deletion policy
 - [ ] End-to-end/browser/accessibility/load/security tests and independent threat model review
