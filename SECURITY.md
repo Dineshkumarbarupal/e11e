@@ -16,7 +16,7 @@ Workflow automation software can hold powerful tokens and send outbound requests
 
 ## Known gaps / no production guarantee
 - No MFA, SSO, email verification, password reset, refresh/revocation flow, invitation/member-management UI or full role administration.
-- Webhook event IDs can be deduplicated. An optional HMAC-SHA256 signature mode stores its signing secret encrypted and binds the event ID and a five-minute timestamp to the canonical JSON payload. Provider-specific signature formats, per-hook quotas, live replay/abuse tests and independent security review remain outstanding.
+- Webhook event IDs can be deduplicated. Optional HMAC-SHA256 signatures store the signing secret encrypted and bind the event ID and a five-minute timestamp to canonical JSON. Route-level per-source/per-webhook rate limits exist, but their default store is process-local; shared Redis-backed rate limiting, provider-specific signature formats, abuse/load tests and independent security review remain outstanding.
 - Browser-side HTTP is limited by browser CORS and is not an enterprise integration runtime.
 - Server HTTP egress is a guarded first implementation, not security-certified. Keep `HTTP_ALLOWED_HOSTS` minimal and blank unless needed; private/reserved IPs and redirects are blocked. Live network tests, formal SSRF review, abuse/load tests, egress allow-list administration and credential rotation remain required.
 - Credentials are encrypted at rest with an environment key. Key rotation, KMS integration, backup-key management, rotation workflows and deletion auditing need implementation.
