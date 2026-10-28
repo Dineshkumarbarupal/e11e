@@ -154,15 +154,24 @@ export function assertCredentialHeader(name, value) {
   if (typeof value !== "string" || value.length > 8192 || /[\r\n]/.test(value)) throw new Error("Credential header value is invalid.");
 }
 
+function prepareRequestHeaders(inputHeaders, credentialHeader) {
+  const headers = validateHeaders(inputHeaders);
+  if (credentialHeader) {
+    assertCredentialHeader(credentialHeader.name, credentialHeader.value);
+    headers[String(credentialHeader.name).toLowerCase()] = credentialHeader.value;
+  }
+  headers["user-agent"] = headers["user-agent"] || "e11e-flow/0.1";
+  return headers;
+}
+
 /** Execute exactly one HTTPS request; redirects are reported but never followed. */
-export async function executeSecureHttpRequest({ url, method = "GET", headers = {}, body, timeoutMs = 10000 }, options = {}) {
+export async function executeSecureHttpRequest({ url, method = "GET", headers = {}, body, timeoutMs = 10000, credentialHeader }, options = {}) {
   const target = await resolveOutboundTarget(url, options);
   const requestMethod = String(method || "GET").toUpperCase();
   if (!["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"].includes(requestMethod)) {
     throw new Error("HTTP method is not supported by the secure outbound executor.");
   }
-  const requestHeaders = validateHeaders(headers);
-  requestHeaders["user-agent"] = requestHeaders["user-agent"] || "e11e-flow/0.1";
+  const requestHeaders = prepareRequestHeaders(headers, credentialHeader);
   let payload;
   if (!["GET", "HEAD"].includes(requestMethod) && body !== undefined && body !== null && body !== "") {
     payload = Buffer.isBuffer(body) ? body : Buffer.from(String(body), "utf8");
@@ -231,4 +240,4 @@ export async function executeSecureHttpRequest({ url, method = "GET", headers = 
   });
 }
 
-export { validateHeaders };
+export { validateHeaders, prepareRequestHeaders };
