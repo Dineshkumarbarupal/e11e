@@ -28,6 +28,7 @@ export const workflowSchema = z.object({
   const byId = new Map();
   for (const [nodeIndex, node] of flow.nodes.entries()) {
     if (node.type === "schedule" && !isValidCronExpression(node.config?.cron || "")) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["nodes", nodeIndex, "config", "cron"], message: "Schedule Trigger requires a valid five-field UTC cron expression." });
+    if (node.type === "webhook" && node.config?.requireSignature !== undefined && typeof node.config.requireSignature !== "boolean") ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["nodes", nodeIndex, "config", "requireSignature"], message: "Webhook requireSignature must be a boolean." });
     if (node.type === "http" && node.config?.credentialId != null && !z.string().uuid().safeParse(node.config.credentialId).success) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["nodes", nodeIndex, "config", "credentialId"], message: "HTTP credentialId must be a UUID from the configured workspace credential vault." });
     if (ids.has(node.id)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["nodes"], message: `Duplicate node id: ${node.id}` });
     ids.add(node.id);
