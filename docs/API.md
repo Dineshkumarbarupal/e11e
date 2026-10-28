@@ -1,6 +1,6 @@
 # e11e Flow API foundation
 
-The API runs separately from the browser-local UI. The UI does not automatically call these endpoints yet; use the API with curl or an API client until the client adapter milestone is complete.
+The API runs separately from the static frontend. The UI can sign in/register, push or pull workflow definitions, queue server executions and load server execution history. Workflow edits still save locally first; sync to server is manual. Some API endpoints remain intended for direct API-client use.
 
 ## Start local services
 You need PostgreSQL and Redis. Copy `server/.env.example` to `server/.env`; provide real values locally and never commit them.
