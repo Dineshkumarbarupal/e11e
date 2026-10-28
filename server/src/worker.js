@@ -3,6 +3,7 @@ import IORedis from "ioredis";
 import { config } from "./config.js";
 import { pool } from "./db.js";
 import { executeWorkflowDefinition } from "./executor.js";
+import { decryptSecret } from "./crypto.js";
 
 const connection = new IORedis(config.REDIS_URL, { maxRetriesPerRequest: null, enableReadyCheck: true });
 const concurrency = Math.min(Math.max(Number(process.env.WORKER_CONCURRENCY) || 3, 1), 16);
@@ -17,7 +18,22 @@ const worker = new Worker("workflow-executions", async job => {
   await pool.query("UPDATE executions SET status='running',started_at=COALESCE(started_at,now()),error=NULL WHERE id=$1", [executionId]);
   try {
     const definition = typeof record.definition === "string" ? JSON.parse(record.definition) : record.definition;
-    const run = await executeWorkflowDefinition(definition, { input: record.input || {}, maxSteps: 100, triggerNodeId: record.trigger_node_id || undefined });
+    const run = await executeWorkflowDefinition(definition, {
+      input: record.input || {},
+      maxSteps: 100,
+      triggerNodeId: record.trigger_node_id || undefined,
+      allowedHosts: config.HTTP_ALLOWED_HOSTS,
+      resolveCredential: async credentialId => {
+        const result = await pool.query(
+          "SELECT encrypted_payload FROM credentials WHERE workspace_id=$1 AND id=$2",
+          [record.workspace_id, credentialId]
+        );
+        const credential = result.rows[0];
+        if (!credential) throw new Error("Credential was not found in this execution workspace.");
+        const payload = typeof credential.encrypted_payload === "string" ? JSON.parse(credential.encrypted_payload) : credential.encrypted_payload;
+        return decryptSecret(payload);
+      }
+    });
     await pool.query("UPDATE executions SET status='success',output=$2::jsonb,node_runs=$3::jsonb,finished_at=now(),error=NULL WHERE id=$1", [executionId, JSON.stringify(run.output), JSON.stringify(run.nodeRuns)]);
     return { status: "success", nodeCount: run.nodeRuns.length };
   } catch (error) {
