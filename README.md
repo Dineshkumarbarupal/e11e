@@ -23,7 +23,7 @@ Browser workflows and local run history are stored in `localStorage`. The API JW
 - Fastify REST API with JWT authentication and password hashing
 - PostgreSQL schema for users, workspaces, memberships, workflows/versions, executions, encrypted credentials and audit events
 - Workspace member checks, viewer write restrictions, input validation, rate limits and explicit CORS origins
-- AES-256-GCM encryption for credential payloads; API responses expose metadata only
+- AES-256-GCM encryption for credential payloads; API responses expose metadata only, and workspace owners can rotate a vault secret without revealing the old value
 - Redis/BullMQ queue plus separate worker process
 - Server worker supports Manual Trigger, Webhook Trigger, Schedule Trigger, Edit Fields, IF, Merge, Wait, Log/Output and a bounded HTTP Request node
 - Optional webhook event-ID deduplication through `x-e11e-event-id` or `Idempotency-Key`; event IDs are hashed and duplicate deliveries reuse the existing execution
