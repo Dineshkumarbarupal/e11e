@@ -1,3 +1,5 @@
+import { executeSecureHttpRequest, assertCredentialHeader } from "./secure-http.js";
+
 function pathValue(value, path) {
   if (!path) return undefined;
   return String(path).split(".").reduce((current, key) => current == null ? undefined : current[key], value);
@@ -77,8 +79,37 @@ export async function executeWorkflowDefinition(workflow, options = {}) {
           output = task.input;
           message = "Output captured";
           break;
-        case "http":
-          throw new Error("Server HTTP nodes are disabled until outbound network policy and credential-reference support are configured. Use the browser demo HTTP node only for non-sensitive test requests.");
+        case "http": {
+          const url = interpolate(config.url || "", task.input);
+          const method = String(config.method || "GET").toUpperCase();
+          const headers = {};
+          for (const [name, rawValue] of Object.entries(config.headers && typeof config.headers === "object" && !Array.isArray(config.headers) ? config.headers : {})) {
+            headers[name] = typeof rawValue === "string" ? interpolate(rawValue, task.input) : rawValue;
+          }
+          if (config.credentialId) {
+            if (typeof options.resolveCredential !== "function") throw new Error("Credential references require workspace-scoped credential resolution.");
+            if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(config.credentialId))) {
+              throw new Error("Credential ID must be a valid UUID.");
+            }
+            const credential = await options.resolveCredential(String(config.credentialId));
+            const fieldPath = String(config.credentialField || "token");
+            const secret = pathValue(credential, fieldPath);
+            if (typeof secret !== "string" && typeof secret !== "number") throw new Error("The configured credential field was not found or was not a string/number.");
+            const headerName = String(config.credentialHeader || "Authorization");
+            const prefix = config.credentialPrefix == null ? "Bearer" : String(config.credentialPrefix);
+            const headerValue = prefix ? prefix + " " + String(secret) : String(secret);
+            assertCredentialHeader(headerName, headerValue);
+            headers[headerName] = headerValue;
+          }
+          const body = ["GET", "HEAD"].includes(method) ? undefined : (config.body ? interpolate(config.body, task.input) : undefined);
+          value = await executeSecureHttpRequest(
+            { url, method, headers, body, timeoutMs: config.timeoutMs },
+            { allowedHosts: options.allowedHosts || [] }
+          );
+          if (!value.ok) throw new Error("Server HTTP request returned status " + value.status + ".");
+          message = "HTTPS request completed";
+          break;
+        }
         default:
           throw new Error(`Unsupported node type: ${node.type}`);
       }
