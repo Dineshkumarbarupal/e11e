@@ -40,6 +40,7 @@ Include `Authorization: Bearer <token>` on each request:
 - `GET /api/workspaces/:workspaceId/executions/:executionId`
 - `GET /api/workspaces/:workspaceId/credentials` — metadata only; plaintext is never returned.
 - `POST /api/workspaces/:workspaceId/credentials` JSON: `{"name":"Demo token","service":"sample","secret":{"token":"placeholder"}}`.
+- `PUT /api/workspaces/:workspaceId/credentials/:credentialId` JSON uses the same `name`, `service` and replacement `secret` fields; it re-encrypts the new payload, updates `updated_at`, writes an audit event and returns metadata only. The old secret is never read back or returned.
 - `DELETE /api/workspaces/:workspaceId/credentials/:credentialId`
 - `GET /api/workspaces/:workspaceId/audit-logs` (owner/admin only).
 
