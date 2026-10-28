@@ -98,3 +98,18 @@ test("workflow schema rejects a non-boolean webhook signature requirement", () =
   assert.equal(result.success, false);
   assert.ok(result.error.issues.some(issue => issue.path.includes("requireSignature")));
 });
+
+
+test("workflow schema accepts a bounded Loop Over Items node", () => {
+  const flow = validFlow();
+  flow.nodes.push({ id: "loop", type: "loop", name: "Loop", x: 0, y: 180, config: { listField: "records", maxItems: 20 } });
+  assert.equal(workflowSchema.safeParse(flow).success, true);
+});
+
+test("workflow schema rejects invalid Loop Over Items bounds", () => {
+  const flow = validFlow();
+  flow.nodes.push({ id: "loop", type: "loop", name: "Loop", x: 0, y: 180, config: { listField: "", maxItems: 101 } });
+  const result = workflowSchema.safeParse(flow);
+  assert.equal(result.success, false);
+  assert.ok(result.error.issues.some(issue => issue.path.includes("maxItems")));
+});
