@@ -1,6 +1,6 @@
 # Product roadmap and progress meter
 
-**Progress snapshot: approximately 54% of a broad n8n-like MVP scope.** This is a rough engineering estimate, not test coverage, enterprise readiness or feature parity with n8n.
+**Progress snapshot: approximately 55% of a broad n8n-like MVP scope.** This is a rough engineering estimate, not test coverage, enterprise readiness or feature parity with n8n.
 
 ## Implemented in this repository
 - [x] Requested root folders and UI theme structure under `26.00.00/theme/AppName_Basic/User/`
@@ -28,7 +28,7 @@
 - [x] Browser engine unit tests and server schema tests
 - [x] Expanded regression coverage for false IF branches, nested interpolation, rejected non-HTTP URL schemes, shared IF branch targets and incoming edges to trigger nodes
 - [x] Cron parser/matcher and scheduler-core tests for UTC matching, invalid expressions, active workflow selection and deduplication keys
-- [x] UI asset regression suite 8/8; custom harness verifies workflow/canvas/cron/scheduler-core suites, server executor 8/8, secure HTTP policy 9/9 and webhook event-ID helper 6/6. Fastify webhook idempotency integration tests are committed but not executed here; native full test commands, production build and hosted CI result remain unverified
+- [x] UI asset regression suite 9/9; custom harness verifies workflow/canvas/cron/scheduler-core suites, server executor 8/8, secure HTTP policy 9/9 and webhook event-ID helper 6/6. HMAC test contracts pass a deterministic mocked-hash logic harness (not native crypto). Fastify webhook/signature integration tests are committed but not executed here; native full test commands, production build and hosted CI result remain unverified
 - [x] Root `npm test` includes workflow engine, canvas layout, UI asset and cron tests; root `npm run check` checks canvas and cron helper syntax
 - [x] Server tests cover cron matching, schedule-node schema validation, execution starting at a scheduled node, and due-schedule selection
 - [x] Regression test proving an explicit webhook trigger starts the matching node instead of the manual trigger
@@ -37,8 +37,9 @@
 
 ## Not implemented yet
 - [x] Optional webhook event-ID idempotency using hashed event IDs, a partial unique database index and retry-on-enqueue-failure behavior
+- [x] Optional HMAC-SHA256 signed webhook payloads, encrypted per-node signing secret, signed event-ID binding, constant-time comparison and five-minute timestamp tolerance
 - [x] Fastify webhook integration tests for duplicate deliveries, distinct IDs, optional headers, invalid IDs, queue failure/retry and CORS preflight (committed; native run still pending)
-- [ ] Provider-specific webhook signature validation, per-hook quotas and advanced replay controls
+- [ ] Provider-specific signature formats, per-hook quotas and broader anti-replay controls beyond signed event IDs/timestamp windows
 - [ ] Timezone/DST schedules, missed-run backfill policy, scheduler metrics/alerts and large-scale partitioned scheduling
 - [x] Server HTTP credential-reference binding and encrypted workspace resolution
 - [ ] Independent SSRF/security review, live HTTPS integration tests, egress policy administration, credential rotation/KMS, and production HTTP operations
