@@ -39,6 +39,7 @@ export const workflowSchema = z.object({
     edgeIds.add(edge.id);
     if (!ids.has(edge.source) || !ids.has(edge.target)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["edges", index], message: "Connection references a missing node." });
     if (edge.source === edge.target) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["edges", index], message: "Self-connections are not allowed." });
+    if (["manual", "webhook", "schedule"].includes(byId.get(edge.target)?.type)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["edges", index, "target"], message: "Trigger nodes cannot have incoming connections." });
     if (edge.sourceHandle && byId.get(edge.source)?.type !== "if") ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["edges", index], message: "Branch handles can only originate from IF nodes." });
     if (adjacency.has(edge.source) && ids.has(edge.target)) adjacency.get(edge.source).push(edge.target);
   }
