@@ -1,6 +1,6 @@
 # Product roadmap and progress meter
 
-**Progress snapshot: approximately 60% of a broad n8n-like MVP scope.** This is a rough engineering estimate, not test coverage, enterprise readiness or feature parity with n8n.
+**Progress snapshot: approximately 61% of a broad n8n-like MVP scope.** This is a rough engineering estimate, not test coverage, enterprise readiness or feature parity with n8n.
 
 ## Implemented in this repository
 - [x] Requested root folders and UI theme structure under `26.00.00/theme/AppName_Basic/User/`
@@ -22,6 +22,7 @@
 - [x] Guarded server HTTP execution: explicit exact-host allow-list, HTTPS/443 only, DNS validation and pinned IP, private/reserved IP rejection, no auto-follow redirects, bounded response/request sizes and optional encrypted-vault credential headers
 - [x] Redis/BullMQ queue plus a separate worker process
 - [x] Atomic worker execution claims prevent duplicate jobs from re-running already-running or completed workflows while allowing failed attempts to retry
+- [x] Workspace-scoped execution-cancel endpoint and UI action; queued jobs are removed when possible and running jobs cooperatively stop between nodes
 - [x] Token-protected webhook endpoints with per-node SHA-256 token hashes, trigger-specific execution and optional event-ID deduplication
 - [x] UTC five-field cron Schedule Trigger, schema validation, singleton scheduler lock, persistent last-fired slots and retries for queued schedule jobs
 - [x] Explicit CORS allow-list includes the webhook token header for configured browser origins
@@ -29,9 +30,9 @@
 - [x] Browser engine unit tests and server schema tests
 - [x] Expanded regression coverage for false IF branches, nested interpolation, rejected non-HTTP URL schemes, shared IF branch targets and incoming edges to trigger nodes
 - [x] Cron parser/matcher and scheduler-core tests for UTC matching, invalid expressions, active workflow selection and deduplication keys
-- [x] GitHub Actions Build verification passed on commit `580d6140aeab6d61926f66fefbb9311344d83082` (run 40659126068, 2026-10-28): dependency install, root/server syntax checks, browser unit tests, server unit/security tests and Vite production build all succeeded
-- [x] Focused harness runs: browser workflow engine 18/18, server executor 13/13, secure HTTP policy 9/9, UI assets 11/11, atomic execution claims 6/6, plus canvas/cron/scheduler-core checks
-- [ ] Re-run hosted CI after the new execution-claim change; live Docker/PostgreSQL/Redis and real external HTTPS integration tests remain outstanding
+- [x] GitHub Actions Build verification passed for the atomic execution-claim commits through `46d7c6ec485f3bc9e96e05ec7dc769f5cb917106` (runs 40659525383, 40659552036, 40659575617, 40659634136 and 40659649155, 2026-10-28): syntax, browser tests, server/security tests and Vite build all succeeded
+- [x] Focused harness runs: browser workflow engine 18/18, server executor 13/13 before cancellation tests, secure HTTP policy 9/9, UI assets 11/11, atomic execution claims 6/6, plus canvas/cron/scheduler-core checks
+- [ ] New cancellation endpoint/UI changes require their own hosted CI result; live Docker/PostgreSQL/Redis and real external HTTPS integration tests remain outstanding
 - [x] Root `npm test` includes workflow engine, canvas layout, UI asset and cron tests; root `npm run check` checks canvas and cron helper syntax
 - [x] Server tests cover cron matching, schedule-node schema validation, execution starting at a scheduled node, and due-schedule selection
 - [x] Regression test proving an explicit webhook trigger starts the matching node instead of the manual trigger
@@ -49,7 +50,7 @@
 - [ ] Independent SSRF/security review, live HTTPS integration tests, egress policy administration, credential rotation/KMS, and production HTTP operations
 - [ ] Full integrations catalog, OAuth authorization lifecycle, node SDK and community-node management
 - [x] Bounded Loop Over Items node with nested list paths, per-item downstream fan-out and a strict configurable 1–100 item cap; browser and server executor regression tests
-- [ ] General loop cycles/feedback, parallel joins, durable waits/resume, cancellation, node-level retry policies for all node types and replay
+- [ ] General loop cycles/feedback, parallel joins, durable waits/resume, immediate interruption of active nodes, node-level retry policies for all node types and replay
 - [ ] AI agents, supported LLM adapters, tool permissions, vector DB/RAG and human approvals
 - [ ] SSO/MFA, account verification/password reset, session revocation, workspace invites and role administration
 - [x] UI credential vault for encrypted create/list/rotate/delete and metadata-only listing; replacement secret is never read back
