@@ -69,6 +69,25 @@ services:
     command: ["node", "src/worker.js"]
     restart: unless-stopped
 
+  scheduler:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    env_file:
+      - ./server/.env
+    environment:
+      DATABASE_URL: postgresql://e11e:${POSTGRES_PASSWORD:-local-only-change-me}@postgres:5432/e11e
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_started
+    command: ["node", "src/scheduler.js"]
+    restart: unless-stopped
+
 volumes:
   e11e_postgres:
   e11e_redis:
