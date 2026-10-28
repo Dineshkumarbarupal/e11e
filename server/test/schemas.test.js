@@ -81,3 +81,20 @@ test("workflow schema rejects a malformed HTTP credential reference", () => {
   assert.equal(result.success, false);
   assert.ok(result.error.issues.some(issue => issue.path.includes("credentialId")));
 });
+
+
+test("workflow schema accepts an enabled webhook signature requirement", () => {
+  const flow = validFlow();
+  flow.nodes[0].type = "webhook";
+  flow.nodes[0].config = { requireSignature: true };
+  assert.equal(workflowSchema.safeParse(flow).success, true);
+});
+
+test("workflow schema rejects a non-boolean webhook signature requirement", () => {
+  const flow = validFlow();
+  flow.nodes[0].type = "webhook";
+  flow.nodes[0].config = { requireSignature: "true" };
+  const result = workflowSchema.safeParse(flow);
+  assert.equal(result.success, false);
+  assert.ok(result.error.issues.some(issue => issue.path.includes("requireSignature")));
+});
