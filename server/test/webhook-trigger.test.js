@@ -226,15 +226,17 @@ test("signature-required webhook accepts a valid HMAC and timestamp", async () =
     const eventId = "evt_signed_123";
     const timestamp = String(Math.floor(Date.now() / 1000));
     const signature = createWebhookSignature(signatureSecret, timestamp, body, eventId);
-    const response = await injectWebhook(app, {
-      headers: {
-        "x-e11e-webhook-timestamp": timestamp,
-        "x-e11e-webhook-signature": signature,
-        "x-e11e-event-id": eventId
-      },
-      body
-    });
+    const headers = {
+      "x-e11e-webhook-timestamp": timestamp,
+      "x-e11e-webhook-signature": signature,
+      "x-e11e-event-id": eventId
+    };
+    const response = await injectWebhook(app, { headers, body });
+    const duplicate = await injectWebhook(app, { headers, body });
     assert.equal(response.statusCode, 202);
+    assert.equal(duplicate.statusCode, 200);
+    assert.equal(duplicate.json().execution.duplicate, true);
+    assert.equal(duplicate.json().execution.id, response.json().execution.id);
     assert.equal(queue.addCalls.length, 1);
     assert.equal(pool.executions.size, 1);
   } finally {
