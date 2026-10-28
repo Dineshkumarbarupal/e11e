@@ -63,3 +63,21 @@ test("workflow schema rejects connections into trigger nodes", () => {
   assert.equal(result.success, false);
   assert.ok(result.error.issues.some(issue => issue.message.includes("Trigger nodes cannot have incoming connections")));
 });
+
+
+test("workflow schema accepts an HTTP credential reference UUID", () => {
+  const flow = validFlow();
+  flow.nodes.push({
+    id: "http", type: "http", name: "Secure request", x: 0, y: 180,
+    config: { url: "https://api.example.test", credentialId: "123e4567-e89b-42d3-a456-426614174000" }
+  });
+  assert.equal(workflowSchema.safeParse(flow).success, true);
+});
+
+test("workflow schema rejects a malformed HTTP credential reference", () => {
+  const flow = validFlow();
+  flow.nodes.push({ id: "http", type: "http", name: "Secure request", x: 0, y: 180, config: { credentialId: "not-a-uuid" } });
+  const result = workflowSchema.safeParse(flow);
+  assert.equal(result.success, false);
+  assert.ok(result.error.issues.some(issue => issue.path.includes("credentialId")));
+});
