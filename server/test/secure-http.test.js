@@ -78,7 +78,7 @@ test("user-configured request headers cannot override transport/security headers
     accept: "application/json", "x-trace-id": "demo"
   });
   for (const headers of [
-    { Host: "127.0.0.1" }, { Authorization: "Bearer inline-secret" },
+    { Host: "127.0.0.1" }, { Authorization: "Bearer inline-secret" }, { "X-API-Key": "inline-secret" }, { "X-Auth-Token": "inline-secret" },
     { Cookie: "session=abc" }, { "X-Forwarded-For": "127.0.0.1" },
     { "x-test": "safe\r\nInjected: bad" }, { "content-length": "5" }
   ]) assert.throws(() => validateHeaders(headers));
