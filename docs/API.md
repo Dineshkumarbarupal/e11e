@@ -42,6 +42,18 @@ Include `Authorization: Bearer <token>` on each request:
 - `DELETE /api/workspaces/:workspaceId/credentials/:credentialId`
 - `GET /api/workspaces/:workspaceId/audit-logs` (owner/admin only).
 
+
+## Token-protected webhook triggers
+
+Add a Webhook Trigger node to a workflow, sign in to the frontend, and use the node inspector's Generate / rotate endpoint token action. The token is returned once and only its SHA-256 hash is stored in PostgreSQL. Copy it into your external event source's secret header configuration.
+
+- Create or rotate a node token: POST /api/workspaces/:workspaceId/workflows/:workflowId/nodes/:nodeId/webhook-token (JWT required).
+- Trigger execution: POST /api/webhooks/:workflowId/:nodeId with the header x-e11e-webhook-token: TOKEN and a JSON request body.
+- A public webhook returns 202 with an execution id after adding a job to Redis/BullMQ.
+- The workflow must be saved and active on the server. If it was edited in the browser, sync it after toggling the Active flag.
+- Token rotation invalidates the previous token. The server redacts webhook tokens from request logs.
+- The route has the API body-size and rate limits; production should add provider-specific signature verification, per-webhook quotas, secret rotation policy and end-to-end abuse tests.
+
 ## Execution limitations
 The queue worker currently supports Manual Trigger, Edit Fields, IF, Merge, Wait and Log/Output. It rejects server-side HTTP nodes by design until outbound egress/SSRF protection and credential-reference support are implemented. Loop semantics, retries at the node level and human approval are not implemented. Queue retries are limited to the worker job policy; they are not a substitute for idempotent workflow design.
 
