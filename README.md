@@ -8,7 +8,7 @@ e11e Flow is an original workflow-automation project with a browser-based visual
 - Premium responsive dark dashboard, navigation, workflow list and execution-history screens
 - Visual node canvas: move nodes, connect nodes, zoom, inspect/edit node config, remove connections
 - IF node with separate true/false output handles
-- Seven node types: Manual Trigger, Edit Fields, HTTP Request, IF, Merge, Wait and Log/Output
+- Eight node types: Manual Trigger, Webhook Trigger, Edit Fields, HTTP Request (browser demo only), IF, Merge, Wait and Log/Output
 - Local workflow validation, browser-local persistence, JSON import/export and node-by-node test output
 - Local test-run history and execution JSON export
 - Optional API sign-in/register, push/pull workflow sync, server-queue execution and server execution-history loading
@@ -25,7 +25,7 @@ Browser workflows and local run history are stored in `localStorage`. The API JW
 - Server-side HTTP node execution is deliberately disabled until outbound network security and credential-reference support are implemented
 
 ## Important gaps
-The app is **not a complete n8n replacement**. Webhook listeners, schedule/cron triggers, loop node semantics, durable wait/resume, server-side secure HTTP/integration runtime, broad integration catalog, OAuth lifecycle, AI agents/LLM tools/RAG, human approvals, collaboration/invites, SSO/MFA, retention/deletion controls, observability and production hardening are still incomplete. The API foundation has not received independent security review or a full integration/load test. Do not expose it publicly or use production credentials.
+The app is **not a complete n8n replacement**. Schedule/cron triggers, loop node semantics, durable wait/resume, server-side secure HTTP/integration runtime, broad integration catalog, OAuth lifecycle, AI agents/LLM tools/RAG, human approvals, collaboration/invites, SSO/MFA, retention/deletion controls, observability and production hardening are still incomplete. The API foundation has not received independent security review or a full integration/load test. Do not expose it publicly or use production credentials.
 
 ## Requested directory convention
 ```text
