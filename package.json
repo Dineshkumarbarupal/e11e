@@ -11,7 +11,8 @@
     "check": "node --check 26.00.00/theme/AppName_Basic/User/js/app.js && node --check 26.00.00/theme/AppName_Basic/User/js/workflow-engine.js && node --check 26.00.00/theme/AppName_Basic/User/js/canvas-layout.js && node --check 26.00.00/theme/AppName_Basic/User/js/cron-schedule.js",
     "server:dev": "npm --prefix server run dev",
     "server:worker": "npm --prefix server run worker",
-    "server:migrate": "npm --prefix server run migrate"
+    "server:migrate": "npm --prefix server run migrate",
+    "server:scheduler": "npm --prefix server run scheduler"
   },
   "devDependencies": {
     "vite": "^8.3.5"
