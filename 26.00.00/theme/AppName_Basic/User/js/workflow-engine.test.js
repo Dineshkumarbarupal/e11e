@@ -72,3 +72,49 @@ test("webhook execution starts at the selected trigger node", async () => {
   assert.ok(result.nodeRuns.some(run => run.nodeId === "hook"));
   assert.ok(!result.nodeRuns.some(run => run.nodeId === "manual"));
 });
+
+
+test("IF node only routes to the false branch when the condition fails", async () => {
+  const workflow = {
+    id: "if-false-test", name: "IF false test",
+    nodes: [
+      { id: "start", type: "manual", name: "Trigger", x: 0, y: 0, config: {} },
+      { id: "condition", type: "if", name: "Condition", x: 1, y: 0, config: { field: "approved", operator: "equals", value: true } },
+      { id: "yes", type: "log", name: "Yes", x: 2, y: 0, config: {} },
+      { id: "no", type: "log", name: "No", x: 2, y: 1, config: {} }
+    ],
+    edges: [
+      { id: "a", source: "start", target: "condition" },
+      { id: "b", source: "condition", target: "yes", sourceHandle: "true" },
+      { id: "c", source: "condition", target: "no", sourceHandle: "false" }
+    ]
+  };
+  const result = await executeWorkflow(workflow, { input: { approved: false } });
+  assert.ok(result.nodeRuns.some(run => run.nodeId === "no"));
+  assert.ok(!result.nodeRuns.some(run => run.nodeId === "yes"));
+});
+
+test("set node interpolates nested input paths without mutating the input", async () => {
+  const workflow = createDefaultWorkflow();
+  workflow.nodes[1].config.fields = {
+    greeting: "Hello {{ user.name }}",
+    approvedText: "{{ approved }}"
+  };
+  const input = { approved: true, user: { name: "Ada" } };
+  const result = await executeWorkflow(workflow, { input });
+  assert.equal(result.output.greeting, "Hello Ada");
+  assert.equal(result.output.approvedText, "true");
+  assert.deepEqual(input, { approved: true, user: { name: "Ada" } });
+});
+
+test("HTTP node rejects non-HTTP schemes before making a request", async () => {
+  const workflow = {
+    id: "bad-url", name: "Bad URL",
+    nodes: [
+      { id: "start", type: "manual", name: "Trigger", x: 0, y: 0, config: {} },
+      { id: "request", type: "http", name: "Request", x: 200, y: 0, config: { url: "file:///etc/passwd" } }
+    ],
+    edges: [{ id: "a", source: "start", target: "request" }]
+  };
+  await assert.rejects(() => executeWorkflow(workflow), error => error.message.includes("valid http:// or https:// URL"));
+});
