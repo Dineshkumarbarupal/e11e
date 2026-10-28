@@ -195,7 +195,7 @@ export async function buildApp(overrides = {}) {
     if (!member) return;
     const id = uuidSchema.safeParse(request.params.workflowId);
     if (!id.success) return reply.code(400).send({ error: "Invalid workflow id." });
-    const parsed = workflowSchema.safeParse(request.body);
+    const parsed = workflowSchema.safeParse(sanitizeWorkflowInput(request.body));
     if (!parsed.success) return validationReply(reply, parsed.error.issues);
     const definition = { ...parsed.data, id: id.data };
     const updated = await db.query(
