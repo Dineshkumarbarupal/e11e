@@ -164,3 +164,10 @@ test("local execution can explicitly start at a schedule trigger", async () => {
   assert.ok(result.nodeRuns.some(run => run.nodeId === "schedule"));
   assert.ok(!result.nodeRuns.some(run => run.nodeId === "manual"));
 });
+
+
+test("validator rejects edges entering trigger nodes", () => {
+  const workflow = createDefaultWorkflow();
+  workflow.edges.push({ id: "back-to-trigger", source: "log_1", target: "trigger_1" });
+  assert.ok(validateWorkflow(workflow).some(message => message.includes("Trigger nodes cannot have incoming connections")));
+});
