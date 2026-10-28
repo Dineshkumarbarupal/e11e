@@ -6,14 +6,16 @@ e11e Flow is an original workflow-automation project with a browser-based visual
 
 ## Browser product features
 - Premium responsive dark dashboard, navigation, workflow list and execution-history screens
-- Visual node canvas: move nodes, connect nodes, zoom, inspect/edit node config, remove connections
+- Visual node canvas: move nodes, connect nodes, zoom around the viewport, auto-fit the workflow when opened, retain the canvas position when selecting nodes, and avoid overlapping placement for new nodes
 - IF node with separate true/false output handles
 - Eight node types: Manual Trigger, Webhook Trigger, Edit Fields, HTTP Request (browser demo only), IF, Merge, Wait and Log/Output
+- Global workflow search, responsive workflow-list filtering and keyboard shortcut (Ctrl/Cmd+K)
+- Editable JSON test payloads for browser runs and server-queued runs; selecting a Webhook Trigger tests from that node locally
 - Local workflow validation, browser-local persistence, JSON import/export and node-by-node test output
 - Local test-run history and execution JSON export
 - Optional API sign-in/register, push/pull workflow sync, server-queue execution and server execution-history loading
 
-Browser workflows and local run history are stored in `localStorage`. The API JWT is kept in `sessionStorage` for the current browser tab. Browser HTTP requests depend on browser CORS and are only suitable for non-sensitive testing. Never store secrets in workflow fields.
+Browser workflows and local run history are stored in `localStorage`. The API JWT is kept in `sessionStorage` for the current browser tab. Browser HTTP requests depend on browser CORS and are only suitable for non-sensitive testing. The webhook token header is included in the API CORS allow-list for configured frontend origins. Never store secrets in workflow fields.
 
 ## Server foundation
 - Fastify REST API with JWT authentication and password hashing
