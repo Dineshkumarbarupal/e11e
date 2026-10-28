@@ -376,3 +376,17 @@ button:disabled{opacity:.58;cursor:not-allowed;transform:none!important}
 #app #workflow-filter-empty[hidden]{display:none}
 #app .data-table tbody tr[hidden]{display:none}
 @media(max-width:620px){#app .workflow-filter{max-width:none}}
+
+/* Workflow test input: editable, syntax-friendly payload field */
+#app .run-input-panel{padding:15px;border-bottom:1px solid rgba(132,151,190,.13);background:rgba(255,255,255,.012)}
+#app .run-input-panel .field-label{margin:0;color:#aeb9cf}
+#app .run-input-hint{float:right;margin-left:12px;color:#7886a0;font-size:9px;font-weight:500;letter-spacing:0;text-transform:none}
+#app .run-input{min-height:106px;margin-top:8px;font:10px/1.7 ui-monospace,SFMono-Regular,Consolas,monospace;tab-size:2}
+#app .run-input-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px;color:#7e8ba5;font-size:9px;line-height:1.7}
+#app .run-input-footer code{color:#b7acff;font-size:9px}
+#app .run-input-footer button{flex-shrink:0}
+@media(max-width:620px){
+  #app .run-input-panel{padding:12px}
+  #app .run-input-hint{float:none;display:block;margin:2px 0 0}
+  #app .run-input-footer{align-items:flex-start;flex-direction:column;gap:7px}
+}
