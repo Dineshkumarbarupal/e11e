@@ -103,7 +103,8 @@ export async function executeWorkflowDefinition(workflow, options = {}) {
             credentialHeader = { name: headerName, value: headerValue };
           }
           const body = ["GET", "HEAD"].includes(method) ? undefined : (config.body ? interpolate(config.body, task.input) : undefined);
-          value = await executeSecureHttpRequest(
+          const secureRequest = options.executeHttpRequest || executeSecureHttpRequest;
+          value = await secureRequest(
             { url, method, headers, body, timeoutMs: config.timeoutMs, credentialHeader },
             { allowedHosts: options.allowedHosts || [] }
           );
