@@ -29,7 +29,7 @@ jobs:
         run: npm --prefix server run check
       - name: Run workflow engine unit tests
         run: npm test
-      - name: Run server schema tests
+      - name: Run server unit and security tests
         run: npm --prefix server test
       - name: Build static prototype
         run: npm run build
