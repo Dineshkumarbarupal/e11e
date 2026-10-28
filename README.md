@@ -1,6 +1,6 @@
 # e11e Flow — Workflow Automation Studio
 
-e11e Flow is an original workflow-automation project with a browser-based visual editor MVP and a separately deployable Fastify API/worker. It is inspired by common automation patterns and does not copy n8n source code or branding.
+e11e Flow is an original workflow-automation project with a browser-based visual editor MVP and a separately deployable Fastify API, worker and schedule service. It is inspired by common automation patterns and does not copy n8n source code or branding.
 
 > **Status:** functional early MVP, not full n8n parity and not enterprise-ready. See [Roadmap](docs/ROADMAP.md) and [Security](SECURITY.md).
 
@@ -8,9 +8,10 @@ e11e Flow is an original workflow-automation project with a browser-based visual
 - Premium responsive dark dashboard, navigation, workflow list and execution-history screens
 - Visual node canvas: move nodes, connect nodes, zoom around the viewport, auto-fit the workflow when opened, retain the canvas position when selecting nodes, and avoid overlapping placement for new nodes. Canvas placement/sizing logic is isolated in a tested helper module
 - IF node with separate true/false output handles
-- Eight node types: Manual Trigger, Webhook Trigger, Edit Fields, HTTP Request (browser demo only), IF, Merge, Wait and Log/Output
+- Nine node types: Manual Trigger, Webhook Trigger, Schedule Trigger, Edit Fields, HTTP Request (browser demo only), IF, Merge, Wait and Log/Output
 - Global workflow search, responsive workflow-list filtering and keyboard shortcut (Ctrl/Cmd+K)
-- Editable JSON test payloads for browser runs and server-queued runs; selecting a Webhook Trigger tests from that node locally
+- Editable JSON test payloads for browser runs and server-queued runs; selecting a Webhook or Schedule Trigger tests from that node locally
+- UTC Schedule Trigger with five-field cron expressions, a dedicated scheduler process, PostgreSQL slot deduplication and queue-enqueue retries
 - Local workflow validation, browser-local persistence, JSON import/export and node-by-node test output
 - Local test-run history and execution JSON export
 - Regression tests for UI asset order/existence, responsive styles, canvas layout, workflow validation and execution semantics
@@ -24,11 +25,12 @@ Browser workflows and local run history are stored in `localStorage`. The API JW
 - Workspace member checks, viewer write restrictions, input validation, rate limits and explicit CORS origins
 - AES-256-GCM encryption for credential payloads; API responses expose metadata only
 - Redis/BullMQ queue plus separate worker process
-- Server worker supports Manual Trigger, Webhook Trigger, Edit Fields, IF, Merge, Wait and Log/Output with a bounded step budget
+- Server worker supports Manual Trigger, Webhook Trigger, Schedule Trigger, Edit Fields, IF, Merge, Wait and Log/Output with a bounded step budget
+- UTC cron scheduler that holds a PostgreSQL advisory lock, persists the last-fired minute per workflow/node and retries queued schedule executions when Redis is temporarily unavailable
 - Server-side HTTP node execution is deliberately disabled until outbound network security and credential-reference support are implemented
 
 ## Important gaps
-The app is **not a complete n8n replacement**. Schedule/cron triggers, loop node semantics, durable wait/resume, server-side secure HTTP/integration runtime, broad integration catalog, OAuth lifecycle, AI agents/LLM tools/RAG, human approvals, collaboration/invites, SSO/MFA, retention/deletion controls, observability and production hardening are still incomplete. The API foundation has not received independent security review or a full integration/load test. Do not expose it publicly or use production credentials.
+The app is **not a complete n8n replacement**. Loops, durable wait/resume, server-side secure HTTP/integration runtime, broad integration catalog, OAuth lifecycle, AI agents/LLM tools/RAG, human approvals, collaboration/invites, SSO/MFA, retention/deletion controls, scheduler monitoring/misfire recovery and production hardening are still incomplete. Schedule expressions currently use UTC and do not implement timezone/DST rules or backfill missed runs. The API foundation has not received independent security review or a full integration/load test. Do not expose it publicly or use production credentials.
 
 ## Requested directory convention
 ```text
@@ -50,7 +52,7 @@ Requires Node.js 24 LTS or newer. Node 24 is the project's supported runtime tar
 ```bash
 npm install
 npm run check
-npm test  # workflow engine, canvas layout, and UI asset regression tests
+npm test  # workflow engine, canvas layout, UI asset, and cron tests
 npm run build
 npm run dev
 ```
@@ -75,8 +77,9 @@ npm run server:dev
 In another terminal:
 ```bash
 npm run server:worker
+npm run server:scheduler
 ```
-Health checks: `GET /healthz` and `GET /readyz`. See [API notes](docs/API.md).
+The scheduler polls every 15 seconds and evaluates five-field cron schedules in UTC. `docker compose up --build` runs it as a separate service. Health checks: `GET /healthz` and `GET /readyz`. See [API notes](docs/API.md).
 
 ## CI and deployment
 GitHub Actions is configured to run browser syntax checks/unit tests, server syntax checks/schema tests and a Vite production build. The Actions tab is the source of truth for the live result; configuration alone does not mean that checks passed.
