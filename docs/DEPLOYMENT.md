@@ -11,7 +11,7 @@ The current Vite frontend is static and is the simplest free showcase target.
 
 Cloudflare's Pages docs currently list a Free plan with 500 builds/month and one concurrent build. See [Cloudflare Pages limits](https://developers.cloudflare.com/pages/platform/limits/).
 
-This only deploys the frontend. It does not start the API, PostgreSQL, Redis or worker.
+This only deploys the frontend. It does not start the API, PostgreSQL, Redis, worker or cron scheduler.
 
 ## 2. Full-stack sandbox: Render + managed services
 Render documents free web services, static sites, Postgres and Key Value, but warns that free instances are for testing/hobby use rather than production. Free web services spin down after 15 minutes idle and can take about a minute to resume. Free Postgres is limited to 1 GB and expires 30 days after creation; free Key Value is in-memory and loses data on restart. See [Render free service limits](https://render.com/docs/free).
