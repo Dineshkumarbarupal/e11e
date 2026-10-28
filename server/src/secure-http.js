@@ -8,7 +8,8 @@ const MAX_RESPONSE_BODY_BYTES = 1024 * 1024;
 const DNS_TIMEOUT_MS = 4000;
 const FORBIDDEN_CONFIG_HEADERS = new Set([
   "host", "content-length", "transfer-encoding", "connection", "proxy-authorization",
-  "proxy-authenticate", "proxy-connection", "cookie", "set-cookie", "authorization"
+  "proxy-authenticate", "proxy-connection", "cookie", "set-cookie", "authorization",
+  "x-api-key", "api-key", "x-auth-token", "x-access-token"
 ]);
 const FORBIDDEN_CREDENTIAL_HEADERS = new Set([
   "host", "content-length", "transfer-encoding", "connection", "proxy-authorization",
@@ -139,7 +140,7 @@ function validateHeaders(inputHeaders) {
     if (!["string", "number", "boolean"].includes(typeof rawValue)) throw new Error("Header '" + name + "' must have a scalar value.");
     const value = String(rawValue);
     if (value.length > 8192 || /[\r\n]/.test(value)) throw new Error("Header '" + name + "' has an invalid value.");
-    headers[name] = value;
+    headers[key] = value;
   }
   return headers;
 }
