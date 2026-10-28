@@ -1,6 +1,9 @@
+import { isValidCronExpression } from "./cron-schedule.js";
+
 export const NODE_TYPES = {
   manual: { label: "Manual Trigger", icon: "▶", color: "violet" },
   webhook: { label: "Webhook Trigger", icon: "↗", color: "cyan" },
+  schedule: { label: "Schedule Trigger", icon: "◷", color: "orange" },
   set: { label: "Edit Fields", icon: "✎", color: "blue" },
   http: { label: "HTTP Request", icon: "↗", color: "cyan" },
   if: { label: "IF Condition", icon: "⑂", color: "orange" },
@@ -47,7 +50,10 @@ export function validateWorkflow(workflow) {
       break;
     }
   }
-  if ((workflow.nodes || []).length && !(workflow.nodes || []).some(node => ["manual", "webhook"].includes(node.type))) errors.push("Add a Manual Trigger or Webhook Trigger node to test this workflow.");
+  for (const node of workflow.nodes || []) {
+    if (node.type === "schedule" && !isValidCronExpression(node.config?.cron || "")) errors.push(`Schedule node ${node.name || node.id} needs a valid five-field UTC cron expression.`);
+  }
+  if ((workflow.nodes || []).length && !(workflow.nodes || []).some(node => ["manual", "webhook", "schedule"].includes(node.type))) errors.push("Add a Manual Trigger, Webhook Trigger or Schedule Trigger node to test this workflow.");
   return [...new Set(errors)];
 }
 
@@ -97,6 +103,7 @@ export async function executeWorkflow(workflow, options = {}) {
       switch (node.type) {
         case "manual":
         case "webhook":
+        case "schedule":
           value = job.input;
           break;
         case "set": {
