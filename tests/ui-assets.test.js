@@ -129,3 +129,14 @@ test("server execution details are fetched and rendered with escaped JSON", asyn
   assert.match(app, /esc\(JSON\.stringify\(execution, null, 2\)\)/);
   assert.match(app, /apiRequest\(workspaceApiPath\(\) \+ "\/executions\/" \+ encodeURIComponent\(executionId\)\)/);
 });
+
+
+test("workflow version history modal can inspect and restore safe snapshots", async () => {
+  const app = await readRepoFile(UI_ROOT + "js/app.js");
+  assert.match(app, /id="workflow-versions"/);
+  assert.match(app, /id="workflow-version-modal"/);
+  assert.match(app, /data-view-workflow-version/);
+  assert.match(app, /data-restore-workflow-version/);
+  assert.match(app, /esc\(JSON\.stringify\(snapshot\.definition, null, 2\)\)/);
+  assert.match(app, /as new version/);
+});
