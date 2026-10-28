@@ -4,18 +4,23 @@ import { config } from "./config.js";
 import { pool } from "./db.js";
 import { executeWorkflowDefinition } from "./executor.js";
 import { decryptSecret } from "./crypto.js";
+import { claimExecution } from "./execution-claims.js";
 
 const connection = new IORedis(config.REDIS_URL, { maxRetriesPerRequest: null, enableReadyCheck: true });
 const concurrency = Math.min(Math.max(Number(process.env.WORKER_CONCURRENCY) || 3, 1), 16);
 const worker = new Worker("workflow-executions", async job => {
   const { executionId } = job.data;
   const result = await pool.query(
-    "SELECT e.id,e.workspace_id,e.workflow_id,e.input,e.trigger_type,e.trigger_node_id,w.definition FROM executions e JOIN workflows w ON w.id=e.workflow_id AND w.workspace_id=e.workspace_id WHERE e.id=$1",
+    "SELECT e.id,e.workspace_id,e.workflow_id,e.input,e.trigger_type,e.trigger_node_id,e.status,w.definition FROM executions e JOIN workflows w ON w.id=e.workflow_id AND w.workspace_id=e.workspace_id WHERE e.id=$1",
     [executionId]
   );
   const record = result.rows[0];
   if (!record) throw new Error("Execution or workflow record not found.");
-  await pool.query("UPDATE executions SET status='running',started_at=COALESCE(started_at,now()),error=NULL WHERE id=$1", [executionId]);
+  const claim = await claimExecution(pool, executionId);
+  if (!claim.claimed) {
+    console.info("Skipping duplicate execution job:", executionId, "current status:", claim.status);
+    return { status: claim.status, skipped: true };
+  }
   try {
     const definition = typeof record.definition === "string" ? JSON.parse(record.definition) : record.definition;
     const run = await executeWorkflowDefinition(definition, {
