@@ -1,6 +1,6 @@
 # Product roadmap and progress meter
 
-**Progress snapshot: approximately 65% of a broad n8n-like MVP scope.** This is a rough engineering estimate, not test coverage, enterprise readiness or feature parity with n8n.
+**Progress snapshot: approximately 66% of a broad n8n-like MVP scope.** This is a rough engineering estimate, not test coverage, enterprise readiness or feature parity with n8n.
 
 ## Implemented in this repository
 - [x] Requested root folders and UI theme structure under `26.00.00/theme/AppName_Basic/User/`
@@ -34,8 +34,7 @@
 - [x] Cron parser/matcher and scheduler-core tests for UTC matching, invalid expressions, active workflow selection and deduplication keys
 - [x] GitHub Actions Build verification passed for the atomic execution-claim commits through `46d7c6ec485f3bc9e96e05ec7dc769f5cb917106` (runs 40659525383, 40659552036, 40659575617, 40659634136 and 40659649155, 2026-10-28): syntax, browser tests, server/security tests and Vite build all succeeded
 - [x] Focused harness runs: browser workflow engine 18/18, server executor 13/13 before cancellation tests, secure HTTP policy 9/9, UI assets 11/11, atomic execution claims 6/6, plus canvas/cron/scheduler-core checks
-- [x] GitHub Actions run `40660847263` passed on commit `53054c48f3ca081db76093d9bb6e16a4ef1947c5` (2026-10-28): root 42 tests, server 86 tests, and Vite production build succeeded
-- [x] GitHub Actions run `40664453838` passed on commit `8a91c61c2c29e9736f84dac46bf5cc85f7e830b3` (2026-10-28): root 50 tests, server/security 98 tests, syntax checks and Vite production build all succeeded with bounded HTTP retry tests
+- [x] GitHub Actions run `40665209982` passed on commit `a808d28df3cfb5aa0b9f38dd4829d1cdd2a312e1` (2026-10-28): root 54 tests, server/security 109 tests, syntax checks and Vite production build all succeeded, including credential API tests and HTTP retry bounds
 - [ ] Live Docker/PostgreSQL/Redis migration tests and real external HTTPS integration tests remain outstanding
 - [x] Root `npm test` includes workflow engine, canvas layout, UI asset and cron tests; root `npm run check` checks canvas and cron helper syntax
 - [x] Server tests cover cron matching, schedule-node schema validation, execution starting at a scheduled node, and due-schedule selection
@@ -46,7 +45,8 @@
 ## Not implemented yet
 - [x] Optional webhook event-ID idempotency using hashed event IDs, a partial unique database index and retry-on-enqueue-failure behavior
 - [x] Optional HMAC-SHA256 signed webhook payloads, encrypted per-node signing secret, signed event-ID binding, constant-time comparison and five-minute timestamp tolerance
-- [x] Fastify webhook integration tests for duplicate deliveries, distinct IDs, optional headers, invalid IDs, queue failure/retry and CORS preflight (committed; native run still pending)
+- [x] Fastify webhook integration tests for duplicate deliveries, distinct IDs, optional headers, invalid IDs, queue failure/retry and CORS preflight (covered by hosted server test suite)
+- [x] Credential API tests for encrypted create/rotate, metadata-only listing, delete, duplicate-name conflicts, workspace isolation and viewer write restrictions
 - [x] Configurable per-source/per-webhook route rate limit (default 60/minute) with an integration test
 - [ ] Shared Redis rate-limit store and metrics for multi-instance deployments, provider-specific signature formats and broader anti-replay controls beyond signed event IDs/timestamp windows
 - [ ] Timezone/DST schedules, missed-run backfill policy, scheduler metrics/alerts and large-scale partitioned scheduling
