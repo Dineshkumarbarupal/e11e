@@ -72,3 +72,20 @@ test("server executor starts specifically at a webhook trigger node", async () =
   assert.equal(run.output.event, "created");
   assert.ok(!run.nodeRuns.some(item => item.nodeId === "manual"));
 });
+
+
+test("server executor runs a schedule trigger when its node id is explicit", async () => {
+  const flow = {
+    id: "schedule-flow", name: "Schedule flow", active: true,
+    nodes: [
+      { id: "manual", type: "manual", name: "Manual", x: 0, y: 0, config: {} },
+      { id: "schedule", type: "schedule", name: "Schedule", x: 0, y: 150, config: { cron: "0 9 * * 1-5" } },
+      { id: "output", type: "log", name: "Scheduled output", x: 250, y: 150, config: {} }
+    ],
+    edges: [{ id: "schedule-output", source: "schedule", target: "output" }]
+  };
+  const run = await executeWorkflowDefinition(flow, { input: { source: "scheduler" }, triggerNodeId: "schedule" });
+  assert.equal(run.status, "success");
+  assert.equal(run.output.source, "scheduler");
+  assert.ok(!run.nodeRuns.some(item => item.nodeId === "manual"));
+});
