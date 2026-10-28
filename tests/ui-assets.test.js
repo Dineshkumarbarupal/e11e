@@ -103,3 +103,12 @@ test("credential vault exposes encrypted secret rotation without secret read-bac
   assert.match(app, /Credential secret rotated and encrypted/);
   assert.match(app, /The existing secret is never displayed/);
 });
+
+
+test("Loop Over Items controls are present in the editor and remain bounded", async () => {
+  const app = await readRepoFile(UI_ROOT + "js/app.js");
+  assert.match(app, /"merge","loop","wait"/);
+  assert.match(app, /data-config="listField"/);
+  assert.match(app, /maxItems/);
+  assert.match(app, /Loop Over Items/);
+});
