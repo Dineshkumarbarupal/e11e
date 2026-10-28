@@ -1,6 +1,6 @@
 # Product roadmap and progress meter
 
-**Progress snapshot: approximately 57% of a broad n8n-like MVP scope.** This is a rough engineering estimate, not test coverage, enterprise readiness or feature parity with n8n.
+**Progress snapshot: approximately 59% of a broad n8n-like MVP scope.** This is a rough engineering estimate, not test coverage, enterprise readiness or feature parity with n8n.
 
 ## Implemented in this repository
 - [x] Requested root folders and UI theme structure under `26.00.00/theme/AppName_Basic/User/`
@@ -12,7 +12,7 @@
 - [x] UI asset regression tests verify style order/existence, premium CSS delimiter balance, and key editor controls
 - [x] Visual node canvas, node drag-to-position, connector handles, zoom controls and selected-node inspector
 - [x] IF node's true/false branch handles and connection management
-- [x] Nine node types: Manual Trigger, Webhook Trigger, Schedule Trigger, Edit Fields, HTTP Request (browser and allow-listed server HTTPS modes), IF, Merge, Wait and Log/Output
+- [x] Ten node types: Manual Trigger, Webhook Trigger, Schedule Trigger, Edit Fields, HTTP Request (browser and allow-listed server HTTPS modes), IF, Merge, bounded Loop Over Items, Wait and Log/Output
 - [x] Workflow structure validation, local persistence, JSON import/export and per-node test output
 - [x] Editable JSON test input shared by local and server-queued runs; explicit webhook-node selection for local trigger tests
 - [x] Local execution history and run export
@@ -28,7 +28,7 @@
 - [x] Browser engine unit tests and server schema tests
 - [x] Expanded regression coverage for false IF branches, nested interpolation, rejected non-HTTP URL schemes, shared IF branch targets and incoming edges to trigger nodes
 - [x] Cron parser/matcher and scheduler-core tests for UTC matching, invalid expressions, active workflow selection and deduplication keys
-- [x] UI asset regression suite 9/9; custom harness verifies workflow/canvas/cron/scheduler-core suites, server executor 8/8, secure HTTP policy 9/9 and webhook event-ID helper 6/6. HMAC test contracts pass a deterministic mocked-hash logic harness (not native crypto). Fastify webhook/signature/rate-limit integration tests are committed but not executed here; native full test commands, production build and hosted CI result remain unverified
+- [x] Current custom-executed test sets: browser workflow engine 18/18, server executor 13/13, secure HTTP policy 9/9, plus earlier canvas/cron/scheduler-core and UI asset checks. Fastify webhook/signature/rate-limit tests are committed but were not run by a native Node test runner here; full root/server test commands, production build and hosted CI result remain unverified
 - [x] Root `npm test` includes workflow engine, canvas layout, UI asset and cron tests; root `npm run check` checks canvas and cron helper syntax
 - [x] Server tests cover cron matching, schedule-node schema validation, execution starting at a scheduled node, and due-schedule selection
 - [x] Regression test proving an explicit webhook trigger starts the matching node instead of the manual trigger
@@ -45,7 +45,8 @@
 - [x] Server HTTP credential-reference binding and encrypted workspace resolution
 - [ ] Independent SSRF/security review, live HTTPS integration tests, egress policy administration, credential rotation/KMS, and production HTTP operations
 - [ ] Full integrations catalog, OAuth authorization lifecycle, node SDK and community-node management
-- [ ] Complete control flow: loops, parallel joins, durable waits/resume, cancellation, node-level retries and replay
+- [x] Bounded Loop Over Items node with nested list paths, per-item downstream fan-out and a strict configurable 1–100 item cap; browser and server executor regression tests
+- [ ] General loop cycles/feedback, parallel joins, durable waits/resume, cancellation, node-level retry policies for all node types and replay
 - [ ] AI agents, supported LLM adapters, tool permissions, vector DB/RAG and human approvals
 - [ ] SSO/MFA, account verification/password reset, session revocation, workspace invites and role administration
 - [x] UI credential vault for encrypted create/list/rotate/delete and metadata-only listing; replacement secret is never read back
@@ -56,7 +57,7 @@
 - [ ] CI result verification, deployment automation, metrics/traces, alerting, backups and disaster-recovery drills
 
 ## Current behavior
-The browser application stores workflows and local run history in localStorage. API login can save a short-lived token in sessionStorage. Server workflow sync is explicit (push/pull), not continuous. The editor supports canvas auto-fit, non-overlapping node placement, preserved scroll position while editing, and editable JSON test payloads. The server worker supports Manual, Webhook, Schedule, Edit Fields, IF, Merge, Wait and Log/Output. The separate UTC scheduler polls every 15 seconds, persists each fired minute by workflow/node, and retries enqueueing queued schedule executions if Redis is unavailable. It does not support timezone/DST rules or missed-run backfill. The browser HTTP node is a non-sensitive demo feature with CORS constraints. The server HTTP node requires an explicit exact-host `HTTP_ALLOWED_HOSTS` allow-list, HTTPS on port 443 and same-workspace encrypted credential references. Private IPs and redirects are rejected; live-network QA, independent security review and operational hardening remain outstanding.
+The browser application stores workflows and local run history in localStorage. API login can save a short-lived token in sessionStorage. Server workflow sync is explicit (push/pull), not continuous. The editor supports canvas auto-fit, non-overlapping node placement, preserved scroll position while editing, and editable JSON test payloads. The server worker supports Manual, Webhook, Schedule, Edit Fields, IF, Merge, bounded Loop Over Items, Wait and Log/Output. The separate UTC scheduler polls every 15 seconds, persists each fired minute by workflow/node, and retries enqueueing queued schedule executions if Redis is unavailable. It does not support timezone/DST rules or missed-run backfill. The browser HTTP node is a non-sensitive demo feature with CORS constraints. The server HTTP node requires an explicit exact-host `HTTP_ALLOWED_HOSTS` allow-list, HTTPS on port 443 and same-workspace encrypted credential references. Private IPs and redirects are rejected; live-network QA, independent security review and operational hardening remain outstanding.
 
 ## Run and verify
 ```bash
