@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assertCredentialHeader, isPublicInternetAddress, resolveOutboundTarget, validateHeaders } from "../src/secure-http.js";
+import { assertCredentialHeader, isPublicInternetAddress, prepareRequestHeaders, resolveOutboundTarget, validateHeaders } from "../src/secure-http.js";
 
 test("public IP filter accepts representative public IPv4 and IPv6 addresses", () => {
   assert.equal(isPublicInternetAddress("8.8.8.8"), true);
@@ -90,4 +90,13 @@ test("vault credential headers reject forbidden names and CRLF injection", () =>
   assert.throws(() => assertCredentialHeader("Host", "127.0.0.1"), /not allowed/);
   assert.throws(() => assertCredentialHeader("Cookie", "session=x"), /not allowed/);
   assert.throws(() => assertCredentialHeader("X-API-Key", "abc\r\nInjected: value"), /invalid/);
+});
+
+
+test("vault credential headers are injected separately from untrusted headers", () => {
+  const headers = prepareRequestHeaders({ Accept: "application/json" }, { name: "Authorization", value: "Bearer vault-value" });
+  assert.equal(headers.authorization, "Bearer vault-value");
+  assert.equal(headers.accept, "application/json");
+  assert.equal(headers["user-agent"], "e11e-flow/0.1");
+  assert.throws(() => prepareRequestHeaders({ Authorization: "inline-secret" }));
 });
