@@ -89,3 +89,88 @@ test("server executor runs a schedule trigger when its node id is explicit", asy
   assert.equal(run.output.source, "scheduler");
   assert.ok(!run.nodeRuns.some(item => item.nodeId === "manual"));
 });
+
+
+test("server HTTP execution resolves encrypted workspace credentials outside inline headers", async () => {
+  const flow = {
+    id: "secure-http-flow", name: "Secure HTTP flow", active: false,
+    nodes: [
+      { id: "start", type: "manual", name: "Start", x: 0, y: 0, config: {} },
+      { id: "request", type: "http", name: "Request", x: 200, y: 0, config: {
+        url: "https://api.example.test/users/{{ user.id }}",
+        method: "POST",
+        headers: { Accept: "application/json" },
+        body: "{\"name\":\"{{ user.name }}\"}",
+        credentialId: "123e4567-e89b-42d3-a456-426614174000",
+        credentialField: "auth.token",
+        credentialHeader: "Authorization",
+        credentialPrefix: "Bearer"
+      } }
+    ],
+    edges: [{ id: "a", source: "start", target: "request" }]
+  };
+  let credentialLookups = 0;
+  let capturedRequest;
+  const run = await executeWorkflowDefinition(flow, {
+    input: { user: { id: "42", name: "Ada" } },
+    allowedHosts: ["api.example.test"],
+    resolveCredential: async id => {
+      credentialLookups += 1;
+      assert.equal(id, "123e4567-e89b-42d3-a456-426614174000");
+      return { auth: { token: "secret-value" } };
+    },
+    executeHttpRequest: async (request, options) => {
+      capturedRequest = { request, options };
+      return { status: 200, ok: true, headers: { "content-type": "application/json" }, body: { accepted: true } };
+    }
+  });
+  assert.equal(run.status, "success");
+  assert.equal(credentialLookups, 1);
+  assert.equal(capturedRequest.request.url, "https://api.example.test/users/42");
+  assert.equal(capturedRequest.request.method, "POST");
+  assert.equal(capturedRequest.request.body, "{\"name\":\"Ada\"}");
+  assert.equal(capturedRequest.request.headers.Accept, "application/json");
+  assert.equal(capturedRequest.request.headers.Authorization, undefined);
+  assert.deepEqual(capturedRequest.request.credentialHeader, { name: "Authorization", value: "Bearer secret-value" });
+  assert.deepEqual(capturedRequest.options.allowedHosts, ["api.example.test"]);
+  assert.equal(JSON.stringify(flow).includes("secret-value"), false);
+});
+
+test("server HTTP execution rejects malformed credential IDs before vault lookup", async () => {
+  const flow = {
+    id: "bad-credential-flow", name: "Bad credential flow", active: false,
+    nodes: [
+      { id: "start", type: "manual", name: "Start", x: 0, y: 0, config: {} },
+      { id: "request", type: "http", name: "Request", x: 200, y: 0, config: {
+        url: "https://api.example.test", credentialId: "not-a-uuid"
+      } }
+    ],
+    edges: [{ id: "a", source: "start", target: "request" }]
+  };
+  let called = false;
+  await assert.rejects(() => executeWorkflowDefinition(flow, {
+    resolveCredential: async () => { called = true; return { token: "not-needed" }; },
+    executeHttpRequest: async () => ({ status: 200, ok: true, body: {} })
+  }), /Credential ID must be a valid UUID/);
+  assert.equal(called, false);
+});
+
+test("server HTTP execution rejects a missing credential field without making a request", async () => {
+  const flow = {
+    id: "missing-credential-field", name: "Missing credential field", active: false,
+    nodes: [
+      { id: "start", type: "manual", name: "Start", x: 0, y: 0, config: {} },
+      { id: "request", type: "http", name: "Request", x: 200, y: 0, config: {
+        url: "https://api.example.test", credentialId: "123e4567-e89b-42d3-a456-426614174000",
+        credentialField: "missing.token"
+      } }
+    ],
+    edges: [{ id: "a", source: "start", target: "request" }]
+  };
+  let requested = false;
+  await assert.rejects(() => executeWorkflowDefinition(flow, {
+    resolveCredential: async () => ({ token: "present" }),
+    executeHttpRequest: async () => { requested = true; return { status: 200, ok: true, body: {} }; }
+  }), /credential field was not found/);
+  assert.equal(requested, false);
+});
