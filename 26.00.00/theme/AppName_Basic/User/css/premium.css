@@ -404,3 +404,22 @@ button:disabled{opacity:.58;cursor:not-allowed;transform:none!important}
 #app .server-execution-detail> b{display:block;margin-bottom:10px;color:#dce4f5;font-size:12px}
 #app .server-execution-json{margin:10px 0 0;padding:14px;border:1px solid rgba(132,151,190,.16);border-radius:10px;background:rgba(5,8,15,.62);color:#acb8d0;font:10px/1.75 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;max-height:420px;overflow:auto}
 @media(max-width:620px){#app .server-execution-json{padding:10px;font-size:9px;max-height:300px}}
+
+/* Workflow version history modal */
+#app .version-history-modal{position:fixed;inset:0;z-index:1400;display:flex;align-items:center;justify-content:center;padding:clamp(8px,3vw,28px)}
+#app .version-history-modal[hidden]{display:none!important}
+#app .version-history-scrim{position:absolute;inset:0;background:rgba(3,5,12,.8);backdrop-filter:blur(9px)}
+#app .version-history-dialog{position:relative;display:flex;flex-direction:column;gap:14px;width:min(880px,100%);max-height:min(88vh,900px);overflow:auto;padding:clamp(15px,2.4vw,24px);border:1px solid rgba(137,153,192,.2);border-radius:18px;background:#0d1220;box-shadow:0 24px 80px rgba(0,0,0,.45)}
+#app .version-history-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:13px;border-bottom:1px solid rgba(132,151,190,.15)}
+#app .version-history-heading h2{margin:4px 0 6px;font-size:clamp(20px,2.4vw,26px);letter-spacing:-.035em}
+#app .version-history-heading p{margin:0;color:#8490a8;font-size:11px;line-height:1.65}
+#app .version-history-list{display:flex;flex-direction:column;gap:8px}
+#app .version-history-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 13px;border:1px solid rgba(132,151,190,.13);border-radius:11px;background:rgba(255,255,255,.018)}
+#app .version-history-row:hover{border-color:rgba(164,148,255,.3);background:rgba(164,148,255,.035)}
+#app .version-history-meta{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:4px 11px;min-width:0}
+#app .version-history-meta>b{grid-row:span 2;padding:6px 8px;border:1px solid rgba(155,140,255,.2);border-radius:7px;background:rgba(155,140,255,.08);color:#c8beff;font:600 10px/1.2 ui-monospace,SFMono-Regular,Consolas,monospace}
+#app .version-history-meta>strong{overflow-wrap:anywhere;color:#d9e1f2;font-size:12px}
+#app .version-history-meta>small{color:#7f8ba4;font-size:10px;line-height:1.5}
+#app .version-history-actions{display:flex;flex-shrink:0;gap:6px}
+#app .version-history-snapshot{margin-top:10px}
+@media(max-width:620px){#app .version-history-dialog{max-height:94vh;border-radius:14px;padding:13px}#app .version-history-row{align-items:flex-start;flex-direction:column}#app .version-history-actions{width:100%}#app .version-history-actions button{flex:1}}
