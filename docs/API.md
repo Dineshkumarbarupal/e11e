@@ -35,6 +35,9 @@ Include `Authorization: Bearer <token>` on each request:
 - `GET /api/workspaces/:workspaceId/workflows/:workflowId`
 - `PUT /api/workspaces/:workspaceId/workflows/:workflowId` — complete workflow definition.
 - `DELETE /api/workspaces/:workspaceId/workflows/:workflowId`
+- `GET /api/workspaces/:workspaceId/workflows/:workflowId/versions` — newest-first version metadata (up to 50)
+- `GET /api/workspaces/:workspaceId/workflows/:workflowId/versions/:version` — retrieve an immutable saved definition
+- `POST /api/workspaces/:workspaceId/workflows/:workflowId/versions/:version/restore` — restore a saved definition as a new version (writable workspace role required)
 - `POST /api/workspaces/:workspaceId/workflows/:workflowId/executions` JSON: `{"input":{"example":"value"}}`; responds `202` after enqueue.
 - `GET /api/workspaces/:workspaceId/executions`
 - `GET /api/workspaces/:workspaceId/executions/:executionId`
@@ -81,6 +84,12 @@ The HTTP node may reference a credential saved in the same workspace using its `
 Request bodies are limited to 64 KiB, response bodies to 1 MiB, and the request timeout is capped at 30 seconds. Only selected response headers are exposed. Non-2xx responses fail the node. Browser-local HTTP tests remain separate, use browser fetch/CORS rules, and do not use the server allow-list or server credential references.
 
 This is a first guarded implementation, not a production security certification. Configure the smallest possible host allow-list and complete live integration, abuse, load and independent security testing before exposing it to untrusted users.
+
+## Workflow version history
+
+The `workflow_versions` table stores immutable snapshots for each workflow version. Migration `006_workflow_versions.sql` backfills the current version of existing workflows and installs an insert/update trigger to snapshot subsequent changes. The version-list endpoint returns metadata only; the single-version endpoint returns the saved definition. Restore validates the saved definition against the current workflow schema, increments the current workflow version, and records an audit event. Restoring does not delete the newer snapshots.
+
+Version list responses are capped at 50 entries. Retention/pruning, side-by-side diffs, optimistic concurrency conflict resolution, and live PostgreSQL migration/restore tests against a deployed database remain outstanding. Run `npm run server:migrate` before using these endpoints.
 
 ## Execution cancellation
 
