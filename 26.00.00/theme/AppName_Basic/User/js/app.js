@@ -1,6 +1,7 @@
 import { NODE_TYPES, createDefaultWorkflow, executeWorkflow, validateWorkflow } from "./workflow-engine.js";
 import { findAvailableNodePosition, getCanvasDimensions } from "./canvas-layout.js";
 import { isValidCronExpression } from "./cron-schedule.js";
+import { diffWorkflowDefinitions } from "./workflow-version-diff.js";
 
 const STORE_KEY = "e11e.flow.workflows.v1";
 const RUNS_KEY = "e11e.flow.runs.v1";
@@ -333,9 +334,10 @@ async function openWorkflowVersionHistory() {
   try {
     const result = await apiRequest(workspaceApiPath() + "/workflows/" + encodeURIComponent(workflow.id) + "/versions");
     const versions = result.versions || [];
+    const latestVersion = Number(versions[0]?.version || 0);
     list.innerHTML = versions.length
       ? '<div class="version-history-list">' + versions.map(version =>
-          '<article class="version-history-row"><div class="version-history-meta"><b>v' + esc(version.version) + '</b><strong>' + esc(version.name) + '</strong><small>' + esc(version.active ? "Active" : "Inactive") + ' · ' + esc(version.createdAt ? new Date(version.createdAt).toLocaleString() : "Timestamp unavailable") + '</small></div><div class="version-history-actions"><button class="btn-quiet btn-small" data-view-workflow-version="' + esc(version.version) + '">View</button><button class="btn-quiet btn-small" data-restore-workflow-version="' + esc(version.version) + '">Restore</button></div></article>'
+          '<article class="version-history-row"><div class="version-history-meta"><b>v' + esc(version.version) + '</b><strong>' + esc(version.name) + '</strong><small>' + esc(version.active ? "Active" : "Inactive") + ' · ' + esc(version.createdAt ? new Date(version.createdAt).toLocaleString() : "Timestamp unavailable") + '</small></div><div class="version-history-actions"><button class="btn-quiet btn-small" data-view-workflow-version="' + esc(version.version) + '">View</button>' + (Number(version.version) < latestVersion ? '<button class="btn-quiet btn-small" data-compare-workflow-version="' + esc(version.version) + '">Compare to latest</button>' : '') + '<button class="btn-quiet btn-small" data-restore-workflow-version="' + esc(version.version) + '">Restore</button></div></article>'
         ).join("") + '</div>'
       : '<div class="empty-state">No server snapshots yet. Sync this workflow to create its first saved version.</div>';
     list.querySelectorAll("[data-view-workflow-version]").forEach(button => button.addEventListener("click", async () => {
@@ -347,6 +349,37 @@ async function openWorkflowVersionHistory() {
         detail.innerHTML = '<div class="notice version-history-snapshot"><b>Version ' + esc(snapshot.version) + ' · ' + esc(snapshot.name) + '</b><pre class="server-execution-json">' + esc(JSON.stringify(snapshot.definition, null, 2)) + '</pre></div>';
       } catch (error) {
         detail.innerHTML = '<div class="empty-state">' + esc(error.message) + '</div>';
+      }
+    }));
+    list.querySelectorAll("[data-compare-workflow-version]").forEach(button => button.addEventListener("click", async () => {
+      const version = Number(button.dataset.compareWorkflowVersion);
+      if (!Number.isInteger(version) || version < 1 || version >= latestVersion) {
+        toast("Choose a historical version to compare against the latest snapshot.");
+        return;
+      }
+      button.disabled = true;
+      detail.innerHTML = '<div class="empty-state">Loading version comparison…</div>';
+      try {
+        const basePath = workspaceApiPath() + "/workflows/" + encodeURIComponent(workflow.id) + "/versions/";
+        const [olderResult, latestResult] = await Promise.all([
+          apiRequest(basePath + version),
+          apiRequest(basePath + latestVersion)
+        ]);
+        const older = olderResult.version;
+        const latest = latestResult.version;
+        const changes = diffWorkflowDefinitions(older.definition, latest.definition);
+        if (!changes.length) {
+          detail.innerHTML = '<div class="notice version-history-diff"><b>No differences</b><p>Versions ' + esc(version) + ' and ' + esc(latestVersion) + ' have equivalent workflow definitions.</p></div>';
+          return;
+        }
+        const displayValue = (value, exists) => exists ? JSON.stringify(value, null, 2) : "(not present)";
+        detail.innerHTML = '<div class="notice version-history-diff"><div class="version-diff-heading"><b>v' + esc(version) + ' → v' + esc(latestVersion) + '</b><span>' + changes.length + ' changed path(s)</span></div><div class="table-wrap"><table class="data-table version-diff-table"><thead><tr><th>Path</th><th>Version ' + esc(version) + '</th><th>Latest · v' + esc(latestVersion) + '</th></tr></thead><tbody>' +
+          changes.map(change => '<tr><td><code>' + esc(change.path) + '</code></td><td><pre class="version-diff-value">' + esc(displayValue(change.beforeValue, change.beforeExists)) + '</pre></td><td><pre class="version-diff-value">' + esc(displayValue(change.afterValue, change.afterExists)) + '</pre></td></tr>').join("") +
+          '</tbody></table></div></div>';
+      } catch (error) {
+        detail.innerHTML = '<div class="empty-state">Could not compare versions: ' + esc(error.message) + '</div>';
+      } finally {
+        button.disabled = false;
       }
     }));
     list.querySelectorAll("[data-restore-workflow-version]").forEach(button => button.addEventListener("click", async () => {
