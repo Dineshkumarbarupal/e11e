@@ -104,11 +104,12 @@ export async function executeWorkflowDefinition(workflow, options = {}) {
           }
           const body = ["GET", "HEAD"].includes(method) ? undefined : (config.body ? interpolate(config.body, task.input) : undefined);
           const secureRequest = options.executeHttpRequest || executeSecureHttpRequest;
-          value = await secureRequest(
+          const response = await secureRequest(
             { url, method, headers, body, timeoutMs: config.timeoutMs, credentialHeader },
             { allowedHosts: options.allowedHosts || [] }
           );
-          if (!value.ok) throw new Error("Server HTTP request returned status " + value.status + ".");
+          if (!response.ok) throw new Error("Server HTTP request returned status " + response.status + ".");
+          output = response;
           message = "HTTPS request completed";
           break;
         }
