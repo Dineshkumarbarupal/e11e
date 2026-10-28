@@ -175,3 +175,64 @@ test("server HTTP execution rejects a missing credential field without making a 
   }), /credential field was not found/);
   assert.equal(requested, false);
 });
+
+
+test("server HTTP retries transient network errors up to the configured attempt count", async () => {
+  const flow = {
+    id: "http-retry-flow", name: "HTTP retry flow", active: false,
+    nodes: [
+      { id: "start", type: "manual", name: "Start", x: 0, y: 0, config: {} },
+      { id: "request", type: "http", name: "Request", x: 200, y: 0, config: {
+        url: "https://api.example.test/data", retryCount: 2, retryDelayMs: 50
+      } }
+    ],
+    edges: [{ id: "a", source: "start", target: "request" }]
+  };
+  let calls = 0;
+  const run = await executeWorkflowDefinition(flow, {
+    allowedHosts: ["api.example.test"],
+    executeHttpRequest: async () => {
+      calls += 1;
+      if (calls < 3) throw Object.assign(new Error("temporary connection reset"), { code: "ECONNRESET" });
+      return { status: 200, ok: true, headers: {}, body: { retried: true } };
+    }
+  });
+  assert.equal(calls, 3);
+  assert.equal(run.output.body.retried, true);
+  assert.match(run.nodeRuns.find(item => item.nodeId === "request").message, /3 attempts/);
+});
+
+test("server HTTP retries 429 and 5xx responses but not ordinary 4xx responses", async () => {
+  const makeFlow = () => ({
+    id: "http-status-retry", name: "HTTP status retry", active: false,
+    nodes: [
+      { id: "start", type: "manual", name: "Start", x: 0, y: 0, config: {} },
+      { id: "request", type: "http", name: "Request", x: 200, y: 0, config: {
+        url: "https://api.example.test/data", retryCount: 2, retryDelayMs: 50
+      } }
+    ],
+    edges: [{ id: "a", source: "start", target: "request" }]
+  });
+  let retryCalls = 0;
+  const success = await executeWorkflowDefinition(makeFlow(), {
+    allowedHosts: ["api.example.test"],
+    executeHttpRequest: async () => {
+      retryCalls += 1;
+      return retryCalls === 1
+        ? { status: 503, ok: false, headers: {}, body: "temporarily unavailable" }
+        : { status: 200, ok: true, headers: {}, body: { recovered: true } };
+    }
+  });
+  assert.equal(retryCalls, 2);
+  assert.equal(success.output.body.recovered, true);
+
+  let clientErrorCalls = 0;
+  await assert.rejects(() => executeWorkflowDefinition(makeFlow(), {
+    allowedHosts: ["api.example.test"],
+    executeHttpRequest: async () => {
+      clientErrorCalls += 1;
+      return { status: 400, ok: false, headers: {}, body: "bad request" };
+    }
+  }), /status 400/);
+  assert.equal(clientErrorCalls, 1);
+});
