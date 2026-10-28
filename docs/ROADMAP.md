@@ -1,6 +1,6 @@
 # Product roadmap and progress meter
 
-**Progress snapshot: approximately 61% of a broad n8n-like MVP scope.** This is a rough engineering estimate, not test coverage, enterprise readiness or feature parity with n8n.
+**Progress snapshot: approximately 63% of a broad n8n-like MVP scope.** This is a rough engineering estimate, not test coverage, enterprise readiness or feature parity with n8n.
 
 ## Implemented in this repository
 - [x] Requested root folders and UI theme structure under `26.00.00/theme/AppName_Basic/User/`
@@ -34,7 +34,7 @@
 - [x] GitHub Actions Build verification passed for the atomic execution-claim commits through `46d7c6ec485f3bc9e96e05ec7dc769f5cb917106` (runs 40659525383, 40659552036, 40659575617, 40659634136 and 40659649155, 2026-10-28): syntax, browser tests, server/security tests and Vite build all succeeded
 - [x] Focused harness runs: browser workflow engine 18/18, server executor 13/13 before cancellation tests, secure HTTP policy 9/9, UI assets 11/11, atomic execution claims 6/6, plus canvas/cron/scheduler-core checks
 - [x] GitHub Actions run `40660847263` passed on commit `53054c48f3ca081db76093d9bb6e16a4ef1947c5` (2026-10-28): root 42 tests, server 86 tests, and Vite production build succeeded
-- [ ] Latest workflow-version history test run failed one fixture case (missing-workflow test accidentally retained fixture snapshots); fixture has been corrected in commit `4530253811dc40632ac299c43d0b5c18b5f26ee7` and needs a green rerun
+- [x] GitHub Actions run `40661597979` passed on commit `4530253811dc40632ac299c43d0b5c18b5f26ee7` (2026-10-28): root 43 tests, server/security 93 tests, syntax checks and Vite production build all succeeded after correcting the missing-workflow fixture
 - [ ] Live Docker/PostgreSQL/Redis migration tests and real external HTTPS integration tests remain outstanding
 - [x] Root `npm test` includes workflow engine, canvas layout, UI asset and cron tests; root `npm run check` checks canvas and cron helper syntax
 - [x] Server tests cover cron matching, schedule-node schema validation, execution starting at a scheduled node, and due-schedule selection
@@ -63,7 +63,7 @@
 - [ ] Tenant isolation review, comprehensive authorization tests, audit completeness and data retention/deletion policy
 - [ ] Worker claim/idempotency integration test against a real PostgreSQL transaction under concurrent job delivery
 - [ ] End-to-end/browser/accessibility/load/security tests and independent threat model review
-- [ ] CI result verification, deployment automation, metrics/traces, alerting, backups and disaster-recovery drills
+- [ ] Live Docker/PostgreSQL/Redis integration, migration/restore exercise on a real DB, real external HTTPS endpoint testing, deployment automation, metrics/traces, alerting, backups and disaster-recovery drills
 
 ## Current behavior
 The browser application stores workflows and local run history in localStorage. API login can save a short-lived token in sessionStorage. Server workflow sync is explicit (push/pull), not continuous. The editor supports canvas auto-fit, non-overlapping node placement, preserved scroll position while editing, and editable JSON test payloads. The server worker supports Manual, Webhook, Schedule, Edit Fields, IF, Merge, bounded Loop Over Items, Wait and Log/Output. The separate UTC scheduler polls every 15 seconds, persists each fired minute by workflow/node, and retries enqueueing queued schedule executions if Redis is unavailable. It does not support timezone/DST rules or missed-run backfill. The browser HTTP node is a non-sensitive demo feature with CORS constraints. The server HTTP node requires an explicit exact-host `HTTP_ALLOWED_HOSTS` allow-list, HTTPS on port 443 and same-workspace encrypted credential references. Private IPs and redirects are rejected; live-network QA, independent security review and operational hardening remain outstanding.
