@@ -86,6 +86,7 @@ export async function executeWorkflowDefinition(workflow, options = {}) {
           for (const [name, rawValue] of Object.entries(config.headers && typeof config.headers === "object" && !Array.isArray(config.headers) ? config.headers : {})) {
             headers[name] = typeof rawValue === "string" ? interpolate(rawValue, task.input) : rawValue;
           }
+          let credentialHeader = null;
           if (config.credentialId) {
             if (typeof options.resolveCredential !== "function") throw new Error("Credential references require workspace-scoped credential resolution.");
             if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(config.credentialId))) {
@@ -99,11 +100,11 @@ export async function executeWorkflowDefinition(workflow, options = {}) {
             const prefix = config.credentialPrefix == null ? "Bearer" : String(config.credentialPrefix);
             const headerValue = prefix ? prefix + " " + String(secret) : String(secret);
             assertCredentialHeader(headerName, headerValue);
-            headers[headerName] = headerValue;
+            credentialHeader = { name: headerName, value: headerValue };
           }
           const body = ["GET", "HEAD"].includes(method) ? undefined : (config.body ? interpolate(config.body, task.input) : undefined);
           value = await executeSecureHttpRequest(
-            { url, method, headers, body, timeoutMs: config.timeoutMs },
+            { url, method, headers, body, timeoutMs: config.timeoutMs, credentialHeader },
             { allowedHosts: options.allowedHosts || [] }
           );
           if (!value.ok) throw new Error("Server HTTP request returned status " + value.status + ".");
