@@ -45,7 +45,7 @@ test("server executor routes IF through the true branch only", async () => {
   assert.ok(!run.nodeRuns.some(item => item.nodeId === "no"));
 });
 
-test("server executor refuses HTTP until secure egress is implemented", async () => {
+test("server executor blocks HTTP when the hostname is not allow-listed", async () => {
   const flow = {
     id: "http-flow", name: "HTTP flow", active: false,
     nodes: [
