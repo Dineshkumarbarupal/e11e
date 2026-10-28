@@ -1,6 +1,6 @@
 # Product roadmap and progress meter
 
-**Progress snapshot: approximately 40% of a broad n8n-like MVP scope.** This is a rough engineering estimate, not test coverage, enterprise readiness or feature parity with n8n.
+**Progress snapshot: approximately 42% of a broad n8n-like MVP scope.** This is a rough engineering estimate, not test coverage, enterprise readiness or feature parity with n8n.
 
 ## Implemented in this repository
 - [x] Requested root folders and UI theme structure under `26.00.00/theme/AppName_Basic/User/`
@@ -14,12 +14,15 @@
 - [x] Fastify API with JWT auth, bcrypt password hashes, PostgreSQL migrations and workspace membership checks
 - [x] Encrypted credential persistence (AES-256-GCM), credential metadata API and audit log API
 - [x] Redis/BullMQ queue plus a separate worker process
+- [x] Token-protected webhook endpoints with per-node SHA-256 token hashes and trigger-specific execution
+- [x] Tracked SQL migrations, local Docker Compose services and server worker tests
 - [x] Browser engine unit tests and server schema tests
 - [x] GitHub Actions workflow configured for JS syntax, tests and static build
 - [x] API/security/architecture/deployment documentation
 
 ## Not implemented yet
-- [ ] Real webhook ingress/signature verification and schedule/cron triggers
+- [ ] Provider-specific webhook signature validation, event deduplication and per-hook quotas
+- [ ] Schedule/cron triggers, rescheduling and distributed scheduler coordination
 - [ ] Production outbound HTTP node and credential references; server HTTP execution is intentionally disabled
 - [ ] Full integrations catalog, OAuth authorization lifecycle, node SDK and community-node management
 - [ ] Complete control flow: loops, parallel joins, durable waits/resume, cancellation, node-level retries and replay
