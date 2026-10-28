@@ -8,6 +8,7 @@ export const NODE_TYPES = {
   http: { label: "HTTP Request", icon: "↗", color: "cyan" },
   if: { label: "IF Condition", icon: "⑂", color: "orange" },
   merge: { label: "Merge", icon: "⇄", color: "green" },
+  loop: { label: "Loop Over Items", icon: "↻", color: "green" },
   wait: { label: "Wait", icon: "◷", color: "orange" },
   log: { label: "Log / Output", icon: "▤", color: "slate" }
 };
@@ -52,6 +53,10 @@ export function validateWorkflow(workflow) {
     }
   }
   for (const node of workflow.nodes || []) {
+    if (node.type === "loop") {
+      if (node.config?.listField !== undefined && (typeof node.config.listField !== "string" || !node.config.listField.trim() || node.config.listField.length > 300)) errors.push("Loop node " + (node.name || node.id) + " needs a valid array field path.");
+      if (node.config?.maxItems !== undefined && (!Number.isInteger(Number(node.config.maxItems)) || Number(node.config.maxItems) < 1 || Number(node.config.maxItems) > 100)) errors.push("Loop node " + (node.name || node.id) + " maxItems must be an integer from 1 to 100.");
+    }
     if (node.type === "schedule" && !isValidCronExpression(node.config?.cron || "")) errors.push(`Schedule node ${node.name || node.id} needs a valid five-field UTC cron expression.`);
   }
   if ((workflow.nodes || []).length && !(workflow.nodes || []).some(node => ["manual", "webhook", "schedule"].includes(node.type))) errors.push("Add a Manual Trigger, Webhook Trigger or Schedule Trigger node to test this workflow.");
@@ -157,6 +162,17 @@ export async function executeWorkflow(workflow, options = {}) {
           value = incoming.length ? Object.assign({}, ...incoming.filter(item => item && typeof item === "object")) : job.input;
           break;
         }
+        case "loop": {
+          const listField = String(config.listField || "items").trim();
+          const items = getPath(job.input, listField);
+          const maxItems = config.maxItems === undefined ? 20 : Number(config.maxItems);
+          if (!Array.isArray(items)) throw new Error('Loop Over Items expected an array at "' + listField + '".');
+          if (!Number.isInteger(maxItems) || maxItems < 1 || maxItems > 100) throw new Error("Loop Over Items maxItems must be an integer from 1 to 100.");
+          if (items.length > maxItems) throw new Error("Loop Over Items received " + items.length + " items; configured limit is " + maxItems + ".");
+          value = { ...((job.input && typeof job.input === "object" && !Array.isArray(job.input)) ? job.input : { value: job.input }), loop: { field: listField, itemCount: items.length } };
+          message = "Prepared " + items.length + " loop item(s)";
+          break;
+        }
         case "wait": {
           const ms = Math.min(Math.max(Number(config.ms) || 0, 0), 1000);
           if (ms) await new Promise(resolve => setTimeout(resolve, ms));
@@ -180,7 +196,23 @@ export async function executeWorkflow(workflow, options = {}) {
     nodeRuns.push({ nodeId: node.id, name: node.name, type: node.type, status, message, durationMs: Date.now() - startedAt, input: job.input, output: value });
     let next = outgoing(workflow.edges, node.id, branch);
     if (node.type === "if") next = workflow.edges.filter(edge => edge.source === node.id && (edge.sourceHandle === branch || (!edge.sourceHandle && !branch)));
-    for (const edge of next) queue.push({ nodeId: edge.target, input: value, path: [...job.path, node.id] });
+    if (node.type === "loop") {
+      const listField = String(node.config?.listField || "items").trim();
+      const items = getPath(job.input, listField);
+      const base = job.input && typeof job.input === "object" && !Array.isArray(job.input) ? job.input : { value: job.input };
+      for (const edge of next) {
+        items.forEach((item, itemIndex) => {
+          const itemFields = item && typeof item === "object" && !Array.isArray(item) ? item : { value: item };
+          queue.push({
+            nodeId: edge.target,
+            input: { ...base, ...itemFields, item, itemIndex, itemCount: items.length, loop: { field: listField, index: itemIndex, count: items.length } },
+            path: [...job.path, node.id]
+          });
+        });
+      }
+    } else {
+      for (const edge of next) queue.push({ nodeId: edge.target, input: value, path: [...job.path, node.id] });
+    }
   }
   return { id: `run_${Date.now().toString(36)}`, status: nodeRuns.some(run => run.status === "error") ? "error" : "success", startedAt: now, finishedAt: new Date().toISOString(), nodeRuns, output: nodeRuns.at(-1)?.output ?? options.input ?? {} };
 }
