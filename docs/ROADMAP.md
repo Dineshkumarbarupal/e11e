@@ -1,6 +1,6 @@
 # Product roadmap and progress meter
 
-**Progress snapshot: approximately 44% of a broad n8n-like MVP scope.** This is a rough engineering estimate, not test coverage, enterprise readiness or feature parity with n8n.
+**Progress snapshot: approximately 45% of a broad n8n-like MVP scope.** This is a rough engineering estimate, not test coverage, enterprise readiness or feature parity with n8n.
 
 ## Implemented in this repository
 - [x] Requested root folders and UI theme structure under `26.00.00/theme/AppName_Basic/User/`
@@ -8,6 +8,8 @@
 - [x] Cohesive premium theme layer aligned to the actual app shell, with responsive editor layouts and accessible focus states
 - [x] Global workflow search (Enter / Ctrl+K / Cmd+K) plus a visible mobile-friendly workflow-list filter
 - [x] Workflow canvas auto-fit, dynamic scroll bounds, preserved viewport on node selection, and collision-aware node placement
+- [x] Pure canvas-layout helpers for node placement and dynamic dimensions, covered by a dedicated layout test file
+- [x] UI asset regression tests verify style order/existence, premium CSS delimiter balance, and key editor controls
 - [x] Visual node canvas, node drag-to-position, connector handles, zoom controls and selected-node inspector
 - [x] IF node's true/false branch handles and connection management
 - [x] Eight node types: Manual Trigger, Webhook Trigger, Edit Fields, HTTP Request (browser demo only), IF, Merge, Wait and Log/Output
@@ -22,7 +24,8 @@
 - [x] Explicit CORS allow-list includes the webhook token header for configured browser origins
 - [x] Tracked SQL migrations, local Docker Compose services and server worker tests
 - [x] Browser engine unit tests and server schema tests
-- [x] Expanded regression coverage for false IF branches, nested interpolation, and rejected non-HTTP URL schemes
+- [x] Expanded regression coverage for false IF branches, nested interpolation, rejected non-HTTP URL schemes, and shared IF branch targets
+- [x] Root `npm test` includes workflow engine, canvas layout, and UI asset tests; root `npm run check` checks the canvas helper syntax
 - [x] Regression test proving an explicit webhook trigger starts the matching node instead of the manual trigger
 - [x] GitHub Actions workflow configured for JS syntax, tests and static build
 - [x] API/security/architecture/deployment documentation
