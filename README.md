@@ -22,7 +22,8 @@ Browser workflows and local run history are stored in `localStorage`. The API JW
 
 ## Server foundation
 - Fastify REST API with JWT authentication and password hashing
-- PostgreSQL schema for users, workspaces, memberships, workflows/versions, executions, encrypted credentials and audit events
+- PostgreSQL schema for users, workspaces, memberships, workflows, immutable workflow-version snapshots, executions, encrypted credentials and audit events
+- Workflow version history with create/update snapshots, version list and detail endpoints, and permission-checked restore that creates a new version
 - Workspace member checks, viewer write restrictions, input validation, rate limits and explicit CORS origins
 - AES-256-GCM encryption for credential payloads; API responses expose metadata only, and workspace owners can rotate a vault secret without revealing the old value
 - Redis/BullMQ queue plus separate worker process; atomic execution claims avoid rerunning already-running/successful execution rows on duplicate jobs, while failed jobs remain retryable
@@ -36,7 +37,7 @@ Browser workflows and local run history are stored in `localStorage`. The API JW
 - Server HTTP is disabled unless the operator explicitly configures exact allowed hostnames in `HTTP_ALLOWED_HOSTS`; an empty list keeps outbound HTTP disabled
 
 ## Important gaps
-The app is **not a complete n8n replacement**. General loop cycles/parallel joins, durable wait/resume, immediate interruption of an in-flight node, full integration runtime/catalog, OAuth lifecycle, AI agents/LLM tools/RAG, human approvals, collaboration/invites, SSO/MFA, retention/deletion controls, scheduler monitoring/misfire recovery and production hardening are still incomplete. The secure HTTP node has not received an independent security review or live network integration test; timezone/DST rules and schedule backfill are also absent. Schedule expressions currently use UTC and do not implement timezone/DST rules or backfill missed runs. The latest confirmed GitHub Actions run (commit `580d6140aeab6d61926f66fefbb9311344d83082`, run 40659126068) passed syntax checks, browser tests, server/security tests, and the Vite production build. A newer worker execution-claim commit was added afterward and needs its own CI result. Live Docker/PostgreSQL/Redis and external HTTPS integration testing, multi-instance shared limiting, independent security review and load tests remain outstanding. Do not expose it publicly or use production credentials.
+The app is **not a complete n8n replacement**. General loop cycles/parallel joins, durable wait/resume, immediate interruption of an in-flight node, workflow-version retention/pruning and side-by-side diffs, full integration runtime/catalog, OAuth lifecycle, AI agents/LLM tools/RAG, human approvals, collaboration/invites, SSO/MFA, retention/deletion controls, scheduler monitoring/misfire recovery and production hardening are still incomplete. The secure HTTP node has not received an independent security review or live network integration test; timezone/DST rules and schedule backfill are also absent. Schedule expressions currently use UTC and do not implement timezone/DST rules or backfill missed runs. The latest confirmed GitHub Actions run (commit `580d6140aeab6d61926f66fefbb9311344d83082`, run 40659126068) passed syntax checks, browser tests, server/security tests, and the Vite production build. A newer worker execution-claim commit was added afterward and needs its own CI result. Live Docker/PostgreSQL/Redis and external HTTPS integration testing, multi-instance shared limiting, independent security review and load tests remain outstanding. Do not expose it publicly or use production credentials.
 
 ## Requested directory convention
 ```text
