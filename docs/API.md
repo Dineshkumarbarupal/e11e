@@ -89,7 +89,7 @@ This is a first guarded implementation, not a production security certification.
 
 The `workflow_versions` table stores immutable snapshots for each workflow version. Migration `006_workflow_versions.sql` backfills the current version of existing workflows and installs an insert/update trigger to snapshot subsequent changes. The version-list endpoint returns metadata only; the single-version endpoint returns the saved definition. Restore validates the saved definition against the current workflow schema, increments the current workflow version, and records an audit event. Restoring does not delete the newer snapshots.
 
-Version list responses are capped at 50 entries. Retention/pruning, side-by-side diffs, optimistic concurrency conflict resolution, and live PostgreSQL migration/restore tests against a deployed database remain outstanding. Run `npm run server:migrate` before using these endpoints.
+Version list responses are capped at 50 entries. The UI compares older versions against the latest snapshot with a path-level diff; changed arrays are displayed as a single path-level value. Retention/pruning, optimistic concurrency conflict resolution, and live PostgreSQL migration/restore tests against a deployed database remain outstanding. Run `npm run server:migrate` before using these endpoints.
 
 ## Execution cancellation
 
