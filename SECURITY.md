@@ -16,6 +16,7 @@ Workflow automation software can hold powerful tokens and send outbound requests
 
 ## Known gaps / no production guarantee
 - No MFA, SSO, email verification, password reset, refresh/revocation flow, invitation/member-management UI or full role administration.
+- Webhook event IDs can be deduplicated when callers provide an idempotency header; provider-specific signature verification, quotas and replay controls are still missing.
 - Browser-side HTTP is limited by browser CORS and is not an enterprise integration runtime.
 - Server HTTP egress is a guarded first implementation, not security-certified. Keep `HTTP_ALLOWED_HOSTS` minimal and blank unless needed; private/reserved IPs and redirects are blocked. Live network tests, formal SSRF review, abuse/load tests, egress allow-list administration and credential rotation remain required.
 - Credentials are encrypted at rest with an environment key. Key rotation, KMS integration, backup-key management, rotation workflows and deletion auditing need implementation.
