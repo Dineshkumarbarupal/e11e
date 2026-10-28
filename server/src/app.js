@@ -47,7 +47,7 @@ export async function buildApp(overrides = {}) {
       return callback(new Error("Origin is not allowed by CORS"), false);
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["authorization", "content-type"],
+    allowedHeaders: ["authorization", "content-type", "x-e11e-webhook-token"],
     maxAge: 600
   });
   await app.register(rateLimit, { max: config.RATE_LIMIT_MAX, timeWindow: "1 minute" });
