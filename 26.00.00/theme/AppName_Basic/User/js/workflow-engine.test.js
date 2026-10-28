@@ -51,3 +51,24 @@ test("validator rejects IF branch handles on non-IF nodes", () => {
   workflow.edges[0].sourceHandle = "true";
   assert.ok(validateWorkflow(workflow).some(message => message.includes("non-IF")));
 });
+
+test("webhook execution starts at the selected trigger node", async () => {
+  const workflow = {
+    id: "webhook-start-test", name: "Webhook start test",
+    nodes: [
+      { id: "manual", type: "manual", name: "Manual Trigger", x: 0, y: 0, config: {} },
+      { id: "hook", type: "webhook", name: "Webhook Trigger", x: 200, y: 0, config: {} },
+      { id: "output", type: "log", name: "Webhook output", x: 400, y: 0, config: {} }
+    ],
+    edges: [{ id: "hook-output", source: "hook", target: "output" }]
+  };
+  const result = await executeWorkflow(workflow, {
+    triggerNodeId: "hook",
+    input: { event: "created", recordId: 42 }
+  });
+  assert.equal(result.status, "success");
+  assert.equal(result.output.event, "created");
+  assert.equal(result.output.recordId, 42);
+  assert.ok(result.nodeRuns.some(run => run.nodeId === "hook"));
+  assert.ok(!result.nodeRuns.some(run => run.nodeId === "manual"));
+});
