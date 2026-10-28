@@ -9,7 +9,7 @@ const concurrency = Math.min(Math.max(Number(process.env.WORKER_CONCURRENCY) || 
 const worker = new Worker("workflow-executions", async job => {
   const { executionId } = job.data;
   const result = await pool.query(
-    "SELECT e.id,e.workspace_id,e.workflow_id,e.input,w.definition FROM executions e JOIN workflows w ON w.id=e.workflow_id AND w.workspace_id=e.workspace_id WHERE e.id=$1",
+    "SELECT e.id,e.workspace_id,e.workflow_id,e.input,e.trigger_type,e.trigger_node_id,w.definition FROM executions e JOIN workflows w ON w.id=e.workflow_id AND w.workspace_id=e.workspace_id WHERE e.id=$1",
     [executionId]
   );
   const record = result.rows[0];
@@ -17,7 +17,7 @@ const worker = new Worker("workflow-executions", async job => {
   await pool.query("UPDATE executions SET status='running',started_at=COALESCE(started_at,now()),error=NULL WHERE id=$1", [executionId]);
   try {
     const definition = typeof record.definition === "string" ? JSON.parse(record.definition) : record.definition;
-    const run = await executeWorkflowDefinition(definition, { input: record.input || {}, maxSteps: 100 });
+    const run = await executeWorkflowDefinition(definition, { input: record.input || {}, maxSteps: 100, triggerNodeId: record.trigger_node_id || undefined });
     await pool.query("UPDATE executions SET status='success',output=$2::jsonb,node_runs=$3::jsonb,finished_at=now(),error=NULL WHERE id=$1", [executionId, JSON.stringify(run.output), JSON.stringify(run.nodeRuns)]);
     return { status: "success", nodeCount: run.nodeRuns.length };
   } catch (error) {
