@@ -67,8 +67,18 @@ The scheduler polls every 15 seconds, uses a PostgreSQL advisory lock to ensure 
 
 Production gaps remain: no timezone/DST support, missed-run backfill, per-schedule concurrency controls, scheduler health endpoint or alerting. Monitor process logs and database/queue health in non-demo deployments.
 
+## Secure server HTTP request nodes
+
+Server-side HTTP is disabled by default. Set `HTTP_ALLOWED_HOSTS` in `server/.env` to an explicit comma-separated list of exact DNS hostnames (for example `api.example.com`). Wildcards, IP literals and non-allow-listed hostnames are not accepted. Requests use HTTPS on port 443 only. DNS answers are checked against private, loopback, link-local, documentation and other reserved IP ranges; the chosen public IP is pinned for the TLS request to reduce DNS-rebinding risk. Redirects are not automatically followed.
+
+The HTTP node may reference a credential saved in the same workspace using its `credentialId` UUID. Configure `credentialField` (default `token`), `credentialHeader` (default `Authorization`) and `credentialPrefix` (default `Bearer`; blank sends the raw value). The execution worker verifies workspace ownership before decrypting the secret. Inline authorization/API-token headers are rejected. The plaintext secret is not copied into workflow definition or run input.
+
+Request bodies are limited to 64 KiB, response bodies to 1 MiB, and the request timeout is capped at 30 seconds. Only selected response headers are exposed. Non-2xx responses fail the node. Browser-local HTTP tests remain separate, use browser fetch/CORS rules, and do not use the server allow-list or server credential references.
+
+This is a first guarded implementation, not a production security certification. Configure the smallest possible host allow-list and complete live integration, abuse, load and independent security testing before exposing it to untrusted users.
+
 ## Execution limitations
-The queue worker currently supports Manual Trigger, Webhook Trigger, Schedule Trigger, Edit Fields, IF, Merge, Wait and Log/Output. It rejects server-side HTTP nodes by design until outbound egress/SSRF protection and credential-reference support are implemented. Loop semantics, retries at the node level and human approval are not implemented. Queue retries are limited to the worker job policy; they are not a substitute for idempotent workflow design.
+The queue worker currently supports Manual Trigger, Webhook Trigger, Schedule Trigger, Edit Fields, IF, Merge, Wait, Log/Output and guarded server HTTPS Request nodes. HTTP calls require `HTTP_ALLOWED_HOSTS`; all other hostname requests are rejected. Loop semantics, node-level retries and human approval are not implemented. Loop semantics, retries at the node level and human approval are not implemented. Queue retries are limited to the worker job policy; they are not a substitute for idempotent workflow design.
 
 ## Production hardening still required
-Password reset, MFA/SSO, account verification, session revocation, member invite/role administration, tenant security testing, credential rotation, backup/restore validation, retention/deletion workflows, audit coverage tests, egress controls, observability, rate-limit tuning and API/client integration remain before production use.
+Password reset, MFA/SSO, account verification, session revocation, member invite/role administration, tenant security testing, credential rotation, backup/restore validation, retention/deletion workflows, audit coverage tests, egress allow-list governance, live HTTP/security testing, observability, rate-limit tuning and API/client integration remain before production use.
