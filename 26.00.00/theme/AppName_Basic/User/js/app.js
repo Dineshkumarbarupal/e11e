@@ -65,8 +65,12 @@ async function syncCurrentWorkflow(shouldRender = true) {
 }
 async function syncAllWorkflows() {
   const remote = await apiRequest(workspaceApiPath() + "/workflows");
-  const remoteIds = new Set((remote.workflows || []).map(flow => flow.id));
-  const synced = [];
+  const remoteWorkflows = remote.workflows || [];
+  const remoteIds = new Set(remoteWorkflows.map(flow => flow.id));
+  const localIds = new Set(workflows.map(flow => flow.id));
+  // Preserve remote-only workflows. "Push local" should update matching records,
+  // not make unrelated server workflows disappear from the browser list.
+  const synced = remoteWorkflows.filter(flow => !localIds.has(flow.id));
   for (const flow of workflows) {
     const exists = remoteIds.has(flow.id);
     const path = exists ? workspaceApiPath() + "/workflows/" + encodeURIComponent(flow.id) : workspaceApiPath() + "/workflows";
