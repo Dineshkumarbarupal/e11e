@@ -120,3 +120,12 @@ test("server execution history offers cancellation for queued/running executions
   assert.match(app, /\/cancel/);
   assert.match(app, /current request before cancellation takes effect|current request to finish/);
 });
+
+
+test("server execution details are fetched and rendered with escaped JSON", async () => {
+  const app = await readRepoFile(UI_ROOT + "js/app.js");
+  assert.match(app, /data-server-execution-detail/);
+  assert.match(app, /server-execution-json/);
+  assert.match(app, /esc\(JSON\.stringify\(execution, null, 2\)\)/);
+  assert.match(app, /apiRequest\(workspaceApiPath\(\) \+ "\/executions\/" \+ encodeURIComponent\(executionId\)\)/);
+});
