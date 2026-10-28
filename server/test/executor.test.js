@@ -54,7 +54,7 @@ test("server executor refuses HTTP until secure egress is implemented", async ()
     ],
     edges: [{ id: "a", source: "start", target: "request" }]
   };
-  await assert.rejects(() => executeWorkflowDefinition(flow), /outbound network policy/);
+  await assert.rejects(() => executeWorkflowDefinition(flow), /outbound network policy/i);
 });
 
 test("server executor starts specifically at a webhook trigger node", async () => {
