@@ -303,7 +303,7 @@ test("signature-required webhook returns configuration error if signing secret i
   const queue = makeQueue();
   const app = await buildApp({ pool, queue });
   try {
-    const response = await injectWebhook(app);
+    const response = await injectWebhook(app, { headers: { "x-e11e-event-id": "evt_missing_signature_secret" } });
     assert.equal(response.statusCode, 409);
     assert.match(response.json().error, /signature secret is not configured/i);
     assert.equal(queue.addCalls.length, 0);
