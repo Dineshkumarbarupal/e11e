@@ -195,7 +195,7 @@ export async function executeSecureHttpRequest({ url, method = "GET", headers = 
       else callback(null, answer.address, answer.family);
     };
     const timeout = Math.min(Math.max(Number(timeoutMs) || 10000, 1000), 30000);
-    const request = httpsRequest(target.url, {
+    const request = (options.requestImpl || httpsRequest)(target.url, {
       method: requestMethod,
       headers: requestHeaders,
       lookup: pinnedLookup,
