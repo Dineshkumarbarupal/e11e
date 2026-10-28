@@ -13,6 +13,7 @@ npm run server:dev
 In another terminal:
 ```bash
 npm run server:worker
+npm run server:scheduler
 ```
 
 ## Health checks
@@ -55,8 +56,19 @@ Add a Webhook Trigger node to a workflow, sign in to the frontend, and use the n
 - The route has the API body-size and rate limits; production should add provider-specific signature verification, per-webhook quotas, secret rotation policy and end-to-end abuse tests.
 - Browser callers must use an origin configured in `CORS_ORIGINS`; the API CORS allow-list includes `x-e11e-webhook-token` for the webhook preflight.
 
+
+## UTC schedule triggers
+
+Add a Schedule Trigger node with a five-field cron expression: `minute hour day-of-month month day-of-week`. Supported field syntax includes numbers, `*`, ranges (`1-5`), comma lists (`1,3,5`) and steps (`*/15`). Day-of-week accepts `0` or `7` for Sunday. Expressions are evaluated in UTC; timezone names, daylight-saving rules and missed-run backfill are not implemented.
+
+Example: `0 9 * * 1-5` runs at 09:00 UTC Monday through Friday. Save and sync the workflow, then set its server-side Active flag. Start the scheduler and worker with `npm run server:scheduler` and `npm run server:worker`, or use Docker Compose.
+
+The scheduler polls every 15 seconds, uses a PostgreSQL advisory lock to ensure only one scheduler instance fires a slot, persists the last-fired minute per workflow/node, and records queued execution rows before adding jobs to Redis/BullMQ. If Redis enqueueing fails, PostgreSQL rows remain queued and are retried on a later poll. The Compose stack includes a separate scheduler service.
+
+Production gaps remain: no timezone/DST support, missed-run backfill, per-schedule concurrency controls, scheduler health endpoint or alerting. Monitor process logs and database/queue health in non-demo deployments.
+
 ## Execution limitations
-The queue worker currently supports Manual Trigger, Webhook Trigger, Edit Fields, IF, Merge, Wait and Log/Output. It rejects server-side HTTP nodes by design until outbound egress/SSRF protection and credential-reference support are implemented. Loop semantics, retries at the node level and human approval are not implemented. Queue retries are limited to the worker job policy; they are not a substitute for idempotent workflow design.
+The queue worker currently supports Manual Trigger, Webhook Trigger, Schedule Trigger, Edit Fields, IF, Merge, Wait and Log/Output. It rejects server-side HTTP nodes by design until outbound egress/SSRF protection and credential-reference support are implemented. Loop semantics, retries at the node level and human approval are not implemented. Queue retries are limited to the worker job policy; they are not a substitute for idempotent workflow design.
 
 ## Production hardening still required
 Password reset, MFA/SSO, account verification, session revocation, member invite/role administration, tenant security testing, credential rotation, backup/restore validation, retention/deletion workflows, audit coverage tests, egress controls, observability, rate-limit tuning and API/client integration remain before production use.
