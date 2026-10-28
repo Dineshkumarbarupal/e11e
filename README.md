@@ -26,6 +26,7 @@ Browser workflows and local run history are stored in `localStorage`. The API JW
 - AES-256-GCM encryption for credential payloads; API responses expose metadata only
 - Redis/BullMQ queue plus separate worker process
 - Server worker supports Manual Trigger, Webhook Trigger, Schedule Trigger, Edit Fields, IF, Merge, Wait, Log/Output and a bounded HTTP Request node
+- Optional webhook event-ID deduplication through `x-e11e-event-id` or `Idempotency-Key`; event IDs are hashed and duplicate deliveries reuse the existing execution
 - Server HTTP uses an exact `HTTP_ALLOWED_HOSTS` list, HTTPS on port 443, pinned DNS addresses, public-IP checks, no automatic redirects, request/response size limits and workspace-scoped encrypted credential references
 - UTC cron scheduler that holds a PostgreSQL advisory lock, persists the last-fired minute per workflow/node and retries queued schedule executions when Redis is temporarily unavailable
 - Server HTTP is disabled unless the operator explicitly configures exact allowed hostnames in `HTTP_ALLOWED_HOSTS`; an empty list keeps outbound HTTP disabled
