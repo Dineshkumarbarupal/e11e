@@ -9,7 +9,8 @@ import { z } from "zod";
 import { config } from "./config.js";
 import { pool } from "./db.js";
 import { redis } from "./redis.js";
-import { encryptSecret } from "./crypto.js";
+import { encryptSecret, decryptSecret } from "./crypto.js";
+import { verifyWebhookSignature } from "./webhook-signature.js";
 import { workflowSchema, registerSchema, loginSchema, credentialSchema } from "./schemas.js";
 import { getWebhookDedupeKey } from "./webhook-idempotency.js";
 
@@ -37,7 +38,7 @@ export async function buildApp(overrides = {}) {
   const db = overrides.pool || pool;
   const queue = overrides.queue;
   const app = Fastify({
-    logger: config.NODE_ENV === "test" ? false : { redact: { paths: ["req.headers.authorization", "req.headers.x-e11e-webhook-token"], censor: "[REDACTED]" } },
+    logger: config.NODE_ENV === "test" ? false : { redact: { paths: ["req.headers.authorization", "req.headers.x-e11e-webhook-token", "req.headers.x-e11e-webhook-signature"], censor: "[REDACTED]" } },
     bodyLimit: 1024 * 1024,
     trustProxy: false
   });
@@ -48,7 +49,7 @@ export async function buildApp(overrides = {}) {
       return callback(new Error("Origin is not allowed by CORS"), false);
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["authorization", "content-type", "x-e11e-webhook-token", "x-e11e-event-id", "idempotency-key"],
+    allowedHeaders: ["authorization", "content-type", "x-e11e-webhook-token", "x-e11e-event-id", "idempotency-key", "x-e11e-webhook-signature", "x-e11e-webhook-timestamp"],
     maxAge: 600
   });
   await app.register(rateLimit, { max: config.RATE_LIMIT_MAX, timeWindow: "1 minute" });
@@ -234,12 +235,24 @@ export async function buildApp(overrides = {}) {
     if (!trigger) return reply.code(422).send({ error: "Select a Webhook Trigger node in this workflow first." });
     const token = randomBytes(32).toString("base64url");
     const tokenHash = createHash("sha256").update(token).digest("hex");
+    const signatureSecret = randomBytes(32).toString("base64url");
+    const encryptedSignatureSecret = JSON.stringify(encryptSecret({ secret: signatureSecret }));
     await db.query(
-      "INSERT INTO webhook_tokens(id,workspace_id,workflow_id,node_id,token_hash,created_by) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(workspace_id,workflow_id,node_id) DO UPDATE SET token_hash=EXCLUDED.token_hash,created_by=EXCLUDED.created_by,rotated_at=now()",
-      [randomUUID(), member.id, workflowId.data, nodeId, tokenHash, request.user.sub]
+      "INSERT INTO webhook_tokens(id,workspace_id,workflow_id,node_id,token_hash,signature_secret_encrypted,created_by) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7) ON CONFLICT(workspace_id,workflow_id,node_id) DO UPDATE SET token_hash=EXCLUDED.token_hash,signature_secret_encrypted=EXCLUDED.signature_secret_encrypted,created_by=EXCLUDED.created_by,rotated_at=now()",
+      [randomUUID(), member.id, workflowId.data, nodeId, tokenHash, encryptedSignatureSecret, request.user.sub]
     );
-    await audit(db, { workspaceId: member.id, userId: request.user.sub, action: "webhook_token.rotate", resourceType: "webhook", resourceId: workflowId.data, metadata: { nodeId } });
-    return reply.code(201).send({ webhook: { path: "/api/webhooks/" + workflowId.data + "/" + encodeURIComponent(nodeId), token, headerName: "x-e11e-webhook-token", nodeId } });
+    await audit(db, { workspaceId: member.id, userId: request.user.sub, action: "webhook_token.rotate", resourceType: "webhook", resourceId: workflowId.data, metadata: { nodeId, signatureSecretRotated: true } });
+    return reply.code(201).send({
+      webhook: {
+        path: "/api/webhooks/" + workflowId.data + "/" + encodeURIComponent(nodeId),
+        token,
+        headerName: "x-e11e-webhook-token",
+        signatureSecret,
+        signatureHeaderName: "x-e11e-webhook-signature",
+        signatureTimestampHeaderName: "x-e11e-webhook-timestamp",
+        nodeId
+      }
+    });
   });
 
   app.post("/api/webhooks/:workflowId/:nodeId", async (request, reply) => {
@@ -250,7 +263,7 @@ export async function buildApp(overrides = {}) {
     if (typeof token !== "string" || token.length < 32 || token.length > 256) return reply.code(401).send({ error: "A valid webhook token is required." });
     const tokenHash = createHash("sha256").update(token).digest("hex");
     const result = await db.query(
-      "SELECT t.workspace_id,t.workflow_id,t.node_id,w.active,w.definition FROM webhook_tokens t JOIN workflows w ON w.workspace_id=t.workspace_id AND w.id=t.workflow_id WHERE t.workflow_id=$1 AND t.node_id=$2 AND t.token_hash=$3",
+      "SELECT t.workspace_id,t.workflow_id,t.node_id,t.signature_secret_encrypted,w.active,w.definition FROM webhook_tokens t JOIN workflows w ON w.workspace_id=t.workspace_id AND w.id=t.workflow_id WHERE t.workflow_id=$1 AND t.node_id=$2 AND t.token_hash=$3",
       [workflowId.data, nodeId, tokenHash]
     );
     const row = result.rows[0];
@@ -259,6 +272,23 @@ export async function buildApp(overrides = {}) {
     const definition = typeof row.definition === "string" ? JSON.parse(row.definition) : row.definition;
     const trigger = (definition.nodes || []).find(node => node.id === nodeId && node.type === "webhook");
     if (!trigger) return reply.code(404).send({ error: "Webhook endpoint not found." });
+    if (trigger.config?.requireSignature === true) {
+      if (!row.signature_secret_encrypted) return reply.code(409).send({ error: "A signature secret is not configured. Rotate the webhook token and update the sender secret." });
+      let signatureSecret;
+      try {
+        const encrypted = typeof row.signature_secret_encrypted === "string" ? JSON.parse(row.signature_secret_encrypted) : row.signature_secret_encrypted;
+        signatureSecret = decryptSecret(encrypted)?.secret;
+      } catch {
+        return reply.code(500).send({ error: "Webhook signature configuration could not be decrypted." });
+      }
+      const validSignature = verifyWebhookSignature({
+        secret: signatureSecret,
+        timestamp: request.headers["x-e11e-webhook-timestamp"],
+        signature: request.headers["x-e11e-webhook-signature"],
+        body: request.body
+      });
+      if (!validSignature) return reply.code(401).send({ error: "Invalid webhook signature or timestamp." });
+    }
     if (!queue) return reply.code(503).send({ error: "Execution queue is unavailable." });
     let dedupeKey;
     try {
