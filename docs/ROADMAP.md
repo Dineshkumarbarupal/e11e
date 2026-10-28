@@ -1,44 +1,50 @@
 # Product roadmap and progress meter
 
-**Progress snapshot: approximately 28% of an early n8n-like MVP scope.** This is an engineering estimate, not test coverage, business readiness or parity with n8n. The full enterprise/product parity scope remains much larger.
+**Progress snapshot: approximately 38% of a broad n8n-like MVP scope.** This is a rough engineering estimate, not test coverage, enterprise readiness or feature parity with n8n.
 
 ## Implemented in this repository
-- [x] Requested root folders and theme directories under `26.00.00/theme/AppName_Basic/User/`
-- [x] Premium dark responsive UI, workspace navigation and dashboard
-- [x] Visual node canvas with drag-to-position, connectors, selected-node inspector, zoom controls
-- [x] Seven node types: Manual Trigger, Edit Fields, HTTP Request, IF, Merge, Wait and Log/Output
-- [x] True/false connector handles for IF nodes
-- [x] Workflow validation, browser-local save, create, edit, import and export JSON
-- [x] Local test executor with per-node input/output, bounded steps, HTTP timeout and failure reporting
-- [x] Local execution history and JSON export
-- [x] Node built-in unit tests and GitHub Actions test/build workflow configured
-- [x] Architecture, security and deployment documentation
+- [x] Requested root folders and UI theme structure under `26.00.00/theme/AppName_Basic/User/`
+- [x] Premium responsive dashboard, navigation, workflow library and execution-history screens
+- [x] Visual node canvas, node drag-to-position, connector handles, zoom controls and selected-node inspector
+- [x] IF node's true/false branch handles and connection management
+- [x] Seven node types: Manual Trigger, Edit Fields, HTTP Request (browser demo only), IF, Merge, Wait and Log/Output
+- [x] Workflow structure validation, local persistence, JSON import/export and per-node test output
+- [x] Local execution history and run export
+- [x] Browser UI sign-in/register to server, manual workflow push/pull, server-side queue and server run-history loading
+- [x] Fastify API with JWT auth, bcrypt password hashes, PostgreSQL migrations and workspace membership checks
+- [x] Encrypted credential persistence (AES-256-GCM), credential metadata API and audit log API
+- [x] Redis/BullMQ queue plus a separate worker process
+- [x] Browser engine unit tests and server schema tests
+- [x] GitHub Actions workflow configured for JS syntax, tests and static build
+- [x] API/security/architecture/deployment documentation
 
 ## Not implemented yet
-- [ ] Server API, database migrations, durable shared storage and workflow version history
-- [ ] User authentication, multi-tenant isolation, RBAC, SSO and audit logs
-- [ ] Real webhook ingress and schedule/cron triggers
-- [ ] Durable queue, Redis workers, retries, cancellation, concurrency management and dead-letter queue
-- [ ] Credential vault, OAuth flows, KMS-based encryption and secret rotation
-- [ ] Large integration catalog, integration SDK, community nodes and node version compatibility
-- [ ] Robust loop/wait-for-event semantics, parallel branch join behavior and full workflow semantics
-- [ ] Production HTTP node SSRF protections, outbound egress policy and code-node sandbox
-- [ ] AI agents, model provider adapters, tool permissions, vector DB/RAG and human approvals
-- [ ] Collaboration, project sharing, environment promotion, reusable sub-workflows and enterprise governance
-- [ ] End-to-end, browser, security, load and disaster-recovery tests
-- [ ] Production deploy, logs/metrics/tracing, alerting, backups and restore drills
+- [ ] Real webhook ingress/signature verification and schedule/cron triggers
+- [ ] Production outbound HTTP node and credential references; server HTTP execution is intentionally disabled
+- [ ] Full integrations catalog, OAuth authorization lifecycle, node SDK and community-node management
+- [ ] Complete control flow: loops, parallel joins, durable waits/resume, cancellation, node-level retries and replay
+- [ ] AI agents, supported LLM adapters, tool permissions, vector DB/RAG and human approvals
+- [ ] SSO/MFA, account verification/password reset, session revocation, workspace invites and role administration
+- [ ] UI credential vault, environment promotion, reusable sub-workflows and collaboration
+- [ ] Frontend conflict resolution/continuous synchronization and complete server execution-detail UI
+- [ ] Tenant isolation review, comprehensive authorization tests, audit completeness and data retention/deletion policy
+- [ ] End-to-end/browser/accessibility/load/security tests and independent threat model review
+- [ ] CI result verification, deployment automation, metrics/traces, alerting, backups and disaster-recovery drills
 
-## Run locally
-Requires Node.js 20+.
+## Current behavior
+The browser application stores workflows and local run history in localStorage. API login can save a short-lived token in sessionStorage. Server workflow sync is explicit (push/pull), not continuous. The server worker supports only Manual, Edit Fields, IF, Merge, Wait and Log/Output. The browser HTTP node is a non-sensitive demo feature with CORS constraints. The server HTTP node intentionally refuses execution until secure egress controls and credential references are available.
+
+## Run and verify
 ```bash
 npm install
+npm run check
 npm test
 npm run build
-npm run dev
+npm install --prefix server
+npm --prefix server run check
+npm --prefix server test
 ```
-
-## What the current completion estimate means
-The current build is a **browser-local workflow MVP**. Workflows and run history live in localStorage. HTTP Request nodes call fetch from the browser and may be blocked by CORS; never place production secrets into the UI. The Activate button only sets a local flag and does not schedule or listen for events. No login, server database, shared teams, server-side workers or secure secret vault is present. Do not expose this version as an enterprise production automation server.
+For the server, configure PostgreSQL and Redis and use the `server/.env.example` template. GitHub Actions is configured to execute these checks; consult the repository's Actions tab for real run results. A configured workflow is not proof of passing status.
 
 ## Enterprise definition of done
-Each feature needs schema validation, authorization checks, unit/integration tests, failure handling, logs/metrics, security review, documentation and an automated deployment path. Percent-complete must be updated only after observable implementation and verification.
+Every feature needs input/schema validation, authorization checks, unit/integration tests, failure semantics, logs/metrics, security review, documentation, deployment automation and recovery procedures. Update progress only after observable implementation and verification.
