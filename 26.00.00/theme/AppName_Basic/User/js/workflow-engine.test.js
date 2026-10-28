@@ -238,3 +238,67 @@ test("Loop Over Items with an empty array completes without downstream runs", as
   assert.equal(result.status, "success");
   assert.equal(result.nodeRuns.filter(run => run.nodeId === "log").length, 0);
 });
+
+
+test("browser HTTP retries transient 5xx responses within the configured bound", async () => {
+  const workflow = {
+    id: "http-retry", name: "HTTP retry",
+    nodes: [
+      { id: "start", type: "manual", name: "Start", x: 0, y: 0, config: {} },
+      { id: "request", type: "http", name: "Request", x: 200, y: 0, config: { url: "https://api.example.test/items", method: "GET", retryCount: 2, retryDelayMs: 50 } }
+    ],
+    edges: [{ id: "a", source: "start", target: "request" }]
+  };
+  const previousFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    return calls < 3
+      ? new Response("temporary", { status: 503, headers: { "content-type": "text/plain" } })
+      : new Response('{"ok":true}', { status: 200, headers: { "content-type": "application/json" } });
+  };
+  try {
+    const result = await executeWorkflow(workflow, { input: {} });
+    const requestRun = result.nodeRuns.find(run => run.nodeId === "request");
+    assert.equal(result.status, "success");
+    assert.equal(calls, 3);
+    assert.deepEqual(requestRun.output.body, { ok: true });
+    assert.match(requestRun.message, /3 attempts/);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("browser HTTP does not retry ordinary 4xx responses", async () => {
+  const workflow = {
+    id: "http-no-retry-4xx", name: "HTTP 4xx",
+    nodes: [
+      { id: "start", type: "manual", name: "Start", x: 0, y: 0, config: {} },
+      { id: "request", type: "http", name: "Request", x: 200, y: 0, config: { url: "https://api.example.test/items", method: "GET", retryCount: 3, retryDelayMs: 50 } }
+    ],
+    edges: [{ id: "a", source: "start", target: "request" }]
+  };
+  const previousFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    return new Response("bad request", { status: 400 });
+  };
+  try {
+    await assert.rejects(() => executeWorkflow(workflow, { input: {} }), /HTTP 400/);
+    assert.equal(calls, 1);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("workflow validator bounds HTTP retry configuration", () => {
+  const workflow = createDefaultWorkflow();
+  workflow.nodes.push({
+    id: "http-retry-settings", type: "http", name: "Request", x: 1000, y: 180,
+    config: { url: "https://api.example.test", retryCount: 4, retryDelayMs: 49 }
+  });
+  const errors = validateWorkflow(workflow);
+  assert.ok(errors.some(error => error.includes("retryCount must be an integer from 0 to 3")));
+  assert.ok(errors.some(error => error.includes("retryDelayMs must be an integer from 50 to 5000")));
+});
