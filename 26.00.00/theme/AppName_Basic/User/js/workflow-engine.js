@@ -1,5 +1,6 @@
 export const NODE_TYPES = {
   manual: { label: "Manual Trigger", icon: "▶", color: "violet" },
+  webhook: { label: "Webhook Trigger", icon: "↗", color: "cyan" },
   set: { label: "Edit Fields", icon: "✎", color: "blue" },
   http: { label: "HTTP Request", icon: "↗", color: "cyan" },
   if: { label: "IF Condition", icon: "⑂", color: "orange" },
@@ -46,7 +47,7 @@ export function validateWorkflow(workflow) {
       break;
     }
   }
-  if ((workflow.nodes || []).length && !(workflow.nodes || []).some(node => node.type === "manual")) errors.push("Add a Manual Trigger node to test this workflow.");
+  if ((workflow.nodes || []).length && !(workflow.nodes || []).some(node => ["manual", "webhook"].includes(node.type))) errors.push("Add a Manual Trigger or Webhook Trigger node to test this workflow.");
   return [...new Set(errors)];
 }
 
@@ -73,7 +74,8 @@ export async function executeWorkflow(workflow, options = {}) {
   const now = new Date().toISOString();
   const maxSteps = Math.min(Math.max(options.maxSteps || 100, 1), 500);
   const nodeMap = new Map(workflow.nodes.map(node => [node.id, node]));
-  const startNodes = workflow.nodes.filter(node => node.type === "manual" || !workflow.edges.some(edge => edge.target === node.id));
+  const manualNodes = workflow.nodes.filter(node => node.type === "manual");
+  const startNodes = options.triggerNodeId ? [nodeMap.get(options.triggerNodeId)].filter(Boolean) : manualNodes.length ? manualNodes : workflow.nodes.filter(node => !workflow.edges.some(edge => edge.target === node.id));
   if (!startNodes.length) throw new Error("No trigger or root node found.");
   const outputs = {};
   const nodeRuns = [];
@@ -94,6 +96,7 @@ export async function executeWorkflow(workflow, options = {}) {
       const config = node.config || {};
       switch (node.type) {
         case "manual":
+        case "webhook":
           value = job.input;
           break;
         case "set": {
