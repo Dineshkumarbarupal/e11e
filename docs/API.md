@@ -38,6 +38,7 @@ Include `Authorization: Bearer <token>` on each request:
 - `POST /api/workspaces/:workspaceId/workflows/:workflowId/executions` JSON: `{"input":{"example":"value"}}`; responds `202` after enqueue.
 - `GET /api/workspaces/:workspaceId/executions`
 - `GET /api/workspaces/:workspaceId/executions/:executionId`
+- `POST /api/workspaces/:workspaceId/executions/:executionId/cancel` — cancel a queued/running execution within the authenticated writable workspace; returns `200` when cancelled, `404` if missing, or `409` if already finished
 - `GET /api/workspaces/:workspaceId/credentials` — metadata only; plaintext is never returned.
 - `POST /api/workspaces/:workspaceId/credentials` JSON: `{"name":"Demo token","service":"sample","secret":{"token":"placeholder"}}`.
 - `PUT /api/workspaces/:workspaceId/credentials/:credentialId` JSON uses the same `name`, `service` and replacement `secret` fields; it re-encrypts the new payload, updates `updated_at`, writes an audit event and returns metadata only. The old secret is never read back or returned.
@@ -80,6 +81,12 @@ The HTTP node may reference a credential saved in the same workspace using its `
 Request bodies are limited to 64 KiB, response bodies to 1 MiB, and the request timeout is capped at 30 seconds. Only selected response headers are exposed. Non-2xx responses fail the node. Browser-local HTTP tests remain separate, use browser fetch/CORS rules, and do not use the server allow-list or server credential references.
 
 This is a first guarded implementation, not a production security certification. Configure the smallest possible host allow-list and complete live integration, abuse, load and independent security testing before exposing it to untrusted users.
+
+## Execution cancellation
+
+Use `POST /api/workspaces/:workspaceId/executions/:executionId/cancel` with the same bearer token used for the other workspace endpoints. The caller must belong to the workspace and have a writable role. Queued executions are marked cancelled and the worker queue job is removed when it is still waiting; a running workflow is marked cancelled and the worker checks that state between nodes. Repeating cancellation for an already-cancelled execution is idempotent. Finished executions return `409`, and non-existent or cross-workspace executions return `404`.
+
+Cancellation is cooperative: a node already in progress is not forcibly terminated. A secure HTTP request may need to finish or time out before the worker observes cancellation at the next node boundary. Workflow side effects that already happened cannot be rolled back automatically.
 
 ## Loop Over Items
 
