@@ -287,7 +287,7 @@ function renderEditor() {
  <div class="editor-layout">
   <aside class="node-palette"><div class="palette-head"><strong>Node library</strong><span class="tiny-pill">${Object.keys(NODE_TYPES).length}</span></div><p class="palette-hint">Select a node to add it to the canvas.</p>
    <div class="palette-section">TRIGGERS</div>${["manual","webhook","schedule"].map(t=>paletteButton(t)).join("")}
-   <div class="palette-section">CORE NODES</div>${["set","http","if","merge","wait","log"].map(t=>paletteButton(t)).join("")}
+   <div class="palette-section">CORE NODES</div>${["set","http","if","merge","loop","wait","log"].map(t=>paletteButton(t)).join("")}
    <div class="palette-help">Tip: connect a node's right handle to the next node's left handle. Click any node to edit its configuration.</div>
   </aside>
   <section class="canvas-shell"><div class="canvas-notice ${state.connectFrom?"connecting":""}" id="canvas-notice">${state.connectFrom?"Connection mode: select an input handle on the target node.": "Canvas · Drag nodes to arrange the flow"}</div><div class="canvas-scroll" id="canvas-scroll"><div class="canvas-inner" id="canvas-inner" style="transform:scale(${state.zoom});width:${canvasWidth}px;height:${canvasHeight}px"><svg class="edge-layer" id="edge-layer" width="${canvasWidth}" height="${canvasHeight}" viewBox="0 0 ${canvasWidth} ${canvasHeight}" aria-label="Workflow connections"><defs><marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#8f86ed"/></marker></defs>${renderEdges(wf)}</svg>${wf.nodes.map(n=>renderNode(n)).join("")}<div class="canvas-watermark">e11e FLOW <span>VISUAL WORKFLOW</span></div></div></div><div class="canvas-legend"><span><i class="legend-dot manual"></i>Trigger</span><span><i class="legend-dot core"></i>Action</span><span><i class="legend-dot if"></i>Condition</span><span class="legend-note">Click output handle → input handle to connect</span></div></section>
@@ -316,6 +316,7 @@ function nodeSummary(n) {
  if(n.type==="if") return (c.field||"field")+" "+(c.operator||"equals")+" "+String(c.value??"");
  if(n.type==="wait") return (c.ms||0)+" ms delay";
  if(n.type==="merge") return "Combine input objects";
+ if(n.type==="loop") return "Each item from "+(c.listField||"items")+" · max "+(c.maxItems||20);
  if(n.type==="log") return "Capture node input/output";
  return "Ready to start";
 }
@@ -352,7 +353,8 @@ function renderInspector(n) {
      (apiConnection ? '<button class="btn-quiet" id="generate-webhook-token">Generate / rotate endpoint token</button>' : '<button class="btn-quiet" data-page="Settings">Connect API to configure endpoint</button>') +
      (setup ? '<div class="webhook-result"><b>Endpoint</b><input class="field-input" readonly value="' + esc(apiConnection.baseUrl + setup.path) + '"><b>Token (shown only now)</b><input class="field-input" readonly value="' + esc(setup.token) + '"><div class="field-help">Header: x-e11e-webhook-token</div><button class="btn-quiet" id="copy-webhook-token">Copy token</button><b>Signature secret (shown only now)</b><input class="field-input" readonly value="' + esc(setup.signatureSecret) + '"><div class="field-help">Headers: x-e11e-event-id, x-e11e-webhook-timestamp and x-e11e-webhook-signature. Sign timestamp + "." + event ID + "." + canonical JSON body using HMAC-SHA256.</div><button class="btn-quiet" id="copy-webhook-signature-secret">Copy signature secret</button><small>Copy both values now. They are not stored in workflow JSON and are not shown again after this editor state is cleared.</small></div>' : '');
  }
-if(n.type==="merge") specific=`<div class="info-block">The demo executor combines object inputs that have already reached this node. Fan-in execution is simplified in this prototype.</div>`;
+if(n.type==="loop") specific=label("Array field path",`<input class="field-input" data-config="listField" value="${esc(c.listField||"items")}" placeholder="items or data.records">`)+label("Maximum items (1–100)",`<input class="field-input" type="number" min="1" max="100" data-config-number="maxItems" value="${esc(c.maxItems??20)}">`)+`<p class="field-help">This node sends each array item to the next node, one run per item. Downstream fields include item properties, <code>item</code>, <code>itemIndex</code> (zero-based), <code>itemCount</code>, and <code>loop.index/count</code>. Empty arrays pass zero items. Execution limits still apply.</p>`;
+ if(n.type==="merge") specific=`<div class="info-block">The demo executor combines object inputs that have already reached this node. Fan-in execution is simplified in this prototype.</div>`;
  if(n.type==="log") specific=`<div class="info-block">Captures its input as the node output. Inspect the Test output drawer after a run.</div>`;
  const relatedEdges=currentWorkflow().edges.filter(e=>e.source===n.id||e.target===n.id); const connections=relatedEdges.length?relatedEdges.map(e=>{const source=byId(e.source),target=byId(e.target);return `<div class="connection-row"><span>${esc(source?.name||e.source)} <i>→</i> ${esc(target?.name||e.target)}<small>${e.sourceHandle?" · "+esc(e.sourceHandle.toUpperCase())+" branch":""}</small></span><button class="icon-btn" data-delete-edge="${esc(e.id)}" title="Remove connection">×</button></div>`;}).join(""):'<div class="field-help">No connections yet.</div>';
  return `<div class="inspector-form">${label("Display name",`<input class="field-input" data-node-name value="${esc(n.name)}">`)}<div class="field-separator"></div>${specific}<div class="inspector-meta"><span>Node ID</span><code>${esc(n.id)}</code></div><div class="inspector-meta"><span>Node type</span><code>${esc(n.type)}</code></div></div><div class="connections-panel"><div class="connections-title">Connections <span>${relatedEdges.length}</span></div>${connections}</div>`;
@@ -442,6 +444,7 @@ function addNode(type) {
  if(type==="set")n.config={fields:{result:"ok"},keepInput:true};
  if(type==="http")n.config={url:"https://jsonplaceholder.typicode.com/todos/1",method:"GET",headers:{},timeoutMs:10000};
  if(type==="if")n.config={field:"approved",operator:"equals",value:true};
+ if(type==="loop")n.config={listField:"items",maxItems:20};
  if(type==="schedule")n.config={cron:"0 9 * * 1-5"};
  if(type==="wait")n.config={ms:250};
  wf.nodes.push(n);wf.updatedAt=new Date().toISOString();state.selectedNodeId=n.id;state.fitPending=true;persist();render();
