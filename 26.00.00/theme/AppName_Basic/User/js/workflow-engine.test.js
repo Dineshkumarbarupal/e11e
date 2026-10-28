@@ -118,3 +118,23 @@ test("HTTP node rejects non-HTTP schemes before making a request", async () => {
   };
   await assert.rejects(() => executeWorkflow(workflow), error => error.message.includes("valid http:// or https:// URL"));
 });
+
+
+test("IF true and false branches may share a single target", async () => {
+  const workflow = {
+    id: "shared-branch-target", name: "Shared branch target",
+    nodes: [
+      { id: "start", type: "manual", name: "Trigger", x: 0, y: 0, config: {} },
+      { id: "condition", type: "if", name: "Condition", x: 1, y: 0, config: { field: "approved", operator: "equals", value: true } },
+      { id: "shared", type: "log", name: "Shared output", x: 2, y: 0, config: {} }
+    ],
+    edges: [
+      { id: "a", source: "start", target: "condition" },
+      { id: "b", source: "condition", target: "shared", sourceHandle: "true" },
+      { id: "c", source: "condition", target: "shared", sourceHandle: "false" }
+    ]
+  };
+  assert.deepEqual(validateWorkflow(workflow), []);
+  const result = await executeWorkflow(workflow, { input: { approved: false } });
+  assert.equal(result.nodeRuns.filter(run => run.nodeId === "shared").length, 1);
+});
