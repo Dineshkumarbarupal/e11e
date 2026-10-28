@@ -138,3 +138,29 @@ test("IF true and false branches may share a single target", async () => {
   const result = await executeWorkflow(workflow, { input: { approved: false } });
   assert.equal(result.nodeRuns.filter(run => run.nodeId === "shared").length, 1);
 });
+
+
+test("schedule trigger validates a five-field UTC cron expression", () => {
+  const workflow = createDefaultWorkflow();
+  workflow.nodes[0] = { ...workflow.nodes[0], type: "schedule", name: "Schedule Trigger", config: { cron: "0 9 * * 1-5" } };
+  assert.deepEqual(validateWorkflow(workflow), []);
+  workflow.nodes[0].config.cron = "60 * * * *";
+  assert.ok(validateWorkflow(workflow).some(message => message.includes("valid five-field UTC cron")));
+});
+
+test("local execution can explicitly start at a schedule trigger", async () => {
+  const workflow = {
+    id: "schedule-local-run", name: "Schedule local test",
+    nodes: [
+      { id: "manual", type: "manual", name: "Manual", x: 0, y: 0, config: {} },
+      { id: "schedule", type: "schedule", name: "Schedule", x: 0, y: 180, config: { cron: "*/15 * * * *" } },
+      { id: "output", type: "log", name: "Output", x: 300, y: 180, config: {} }
+    ],
+    edges: [{ id: "schedule-output", source: "schedule", target: "output" }]
+  };
+  const result = await executeWorkflow(workflow, { triggerNodeId: "schedule", input: { run: "scheduled" } });
+  assert.equal(result.status, "success");
+  assert.equal(result.output.run, "scheduled");
+  assert.ok(result.nodeRuns.some(run => run.nodeId === "schedule"));
+  assert.ok(!result.nodeRuns.some(run => run.nodeId === "manual"));
+});
