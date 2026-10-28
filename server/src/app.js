@@ -365,6 +365,59 @@ export async function buildApp(overrides = {}) {
     return { execution: { id: row.id, workflowId: row.workflow_id, status: row.status, input: row.input, output: row.output, nodeRuns: row.node_runs, error: row.error, queuedAt: row.queued_at, startedAt: row.started_at, finishedAt: row.finished_at } };
   });
 
+  app.post("/api/workspaces/:workspaceId/executions/:executionId/cancel", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const member = await requireMember(request, reply, true);
+    if (!member) return;
+    const id = uuidSchema.safeParse(request.params.executionId);
+    if (!id.success) return reply.code(400).send({ error: "Invalid execution id." });
+
+    const changed = await db.query(
+      "UPDATE executions SET status='cancelled',error='Cancelled by user',finished_at=COALESCE(finished_at,now()) " +
+      "WHERE workspace_id=$1 AND id=$2 AND status IN ('queued','running') RETURNING id,status",
+      [member.id, id.data]
+    );
+    if (!changed.rows[0]) {
+      const current = await db.query(
+        "SELECT id,status FROM executions WHERE workspace_id=$1 AND id=$2",
+        [member.id, id.data]
+      );
+      if (!current.rows[0]) return reply.code(404).send({ error: "Execution not found." });
+      if (current.rows[0].status === "cancelled") {
+        return { execution: { id: id.data, status: "cancelled", alreadyCancelled: true } };
+      }
+      return reply.code(409).send({
+        error: "Only queued or running executions can be cancelled.",
+        execution: { id: id.data, status: current.rows[0].status }
+      });
+    }
+
+    let removedFromQueue = false;
+    if (queue && typeof queue.getJob === "function") {
+      try {
+        const job = await queue.getJob(id.data);
+        if (job) {
+          const state = typeof job.getState === "function" ? await job.getState() : "";
+          if (["waiting", "delayed", "waiting-children", "paused"].includes(state) && typeof job.remove === "function") {
+            await job.remove();
+            removedFromQueue = true;
+          }
+        }
+      } catch (error) {
+        // The DB cancellation flag is authoritative; active jobs check it between nodes.
+        request.log.warn({ executionId: id.data, err: error }, "Could not remove cancelled execution from queue");
+      }
+    }
+    await audit(db, {
+      workspaceId: member.id,
+      userId: request.user.sub,
+      action: "execution.cancel",
+      resourceType: "execution",
+      resourceId: id.data,
+      metadata: { removedFromQueue }
+    });
+    return { execution: { id: id.data, status: "cancelled", removedFromQueue } };
+  });
+
   app.get("/api/workspaces/:workspaceId/credentials", { preHandler: [app.authenticate] }, async (request, reply) => {
     const member = await requireMember(request, reply);
     if (!member) return;
