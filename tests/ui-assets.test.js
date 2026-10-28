@@ -81,3 +81,14 @@ test("main HTML cache-bust version is consistent across all UI assets", async ()
   assert.ok(versions.length >= 3);
   assert.ok(versions.every(version => version === versions[0]), "all UI assets should use the same cache version");
 });
+
+
+test("webhook signature option and one-time signing-secret controls are visible", async () => {
+  const app = await readRepoFile("26.00.00/theme/AppName_Basic/User/js/app.js");
+  assert.match(app, /data-config-bool="requireSignature"/);
+  assert.match(app, /Require signed payload \(HMAC-SHA256\)/);
+  assert.match(app, /signatureSecret/);
+  assert.match(app, /copy-webhook-signature-secret/);
+  assert.match(app, /x-e11e-webhook-timestamp/);
+  assert.match(app, /x-e11e-webhook-signature/);
+});
